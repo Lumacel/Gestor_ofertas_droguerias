@@ -10,11 +10,8 @@ from app import app
 from base_datos import BaseDatos
 from pprint import pprint
 
-
-
 def main():
-    
-    
+ 
     with BaseDatos() as db:
     
         #print("--- Busqueda por nombre: 'actron' ---")
@@ -38,8 +35,8 @@ def main():
         #   print(fila)
 
         print("\n--- Ofertas por drogueria y porcentaje ---")
-        for fila in db.buscar_ofertas(drogueria="farmasun", droga="losartan", porcentaje_minimo=20):
-            print('producto:',fila['producto'], "     descuento:", fila['porcentaje'], "     drogueria:", fila['drogueria'])
+        for fila in db.buscar_ofertas(droga="diclofenac", nombre="rodin", porcentaje_minimo=20):
+            print('producto:',fila['producto'], "droga:", fila['droga'], "laboratorio:", fila['laboratorio'], "descuento:", fila['porcentaje'], "drogueria:", fila['drogueria'])
 
     # aca afuera del "with", la conexion ya se cerro sola --
     # no hace falta llamar nada mas.

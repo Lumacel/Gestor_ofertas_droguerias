@@ -9,21 +9,24 @@
 <div class="tarjeta">
   <form id="formulario">
 
-    <label for="drogueria">Droguería</label>
-    <div class="autocompletar">
-      <input type="text" id="drogueria_texto" placeholder="Escribí para buscar..." autocomplete="off" required>
-      <input type="hidden" id="drogueria_id">
-      <div class="sugerencias" id="drogueria_sugerencias"></div>
+    <div>
+      <label for="drogueria">Droguería</label>
+      <div class="autocompletar">
+        <input type="text" id="drogueria_texto" placeholder="Escribí para buscar..." autocomplete="off" required>
+        <input type="hidden" id="drogueria_id">
+        <div class="sugerencias" id="drogueria_sugerencias"></div>
+      </div>
     </div>
 
-    <label for="nivel_aplicacion">Nivel de aplicación</label>
-    <select id="nivel_aplicacion" required>
-      <option value="">Elegí una opción...</option>
-      <option value="producto">Producto puntual</option>
-      <option value="droga">Droga (principio activo)</option>
-      <option value="laboratorio">Laboratorio</option>
-      <option value="general">General (toda la droguería)</option>
-    </select>
+    <div>
+      <label for="nivel_aplicacion">Nivel de aplicación</label>
+      <select id="nivel_aplicacion" required>
+        <option value="producto">Producto puntual</option>
+        <option value="droga">Droga (principio activo)</option>
+        <option value="laboratorio">Laboratorio</option>
+        <option value="general">General (toda la droguería)</option>
+      </select>
+    </div>
 
     <div id="bloque_referencia" style="display:none;">
       <label for="referencia_texto" id="etiqueta_referencia">A qué aplica</label>
@@ -104,8 +107,16 @@ function configurarAutocompletar({ inputTexto, inputId, contenedorSugerencias, o
     inputId.value = "";  // si el usuario sigue tipeando, invalida la seleccion previa
     buscar(inputTexto.value);
   });
+  inputTexto.addEventListener("focus", () => {
+    buscar(inputTexto.value);  // al hacer foco, muestra la lista completa (o filtrada si ya hay texto)
+  });
   inputTexto.addEventListener("blur", () => {
     setTimeout(() => contenedorSugerencias.classList.remove("abierto"), 150);
+  });
+  inputTexto.parentElement.addEventListener("mouseleave", () => {
+    if (document.activeElement !== inputTexto) {
+      contenedorSugerencias.classList.remove("abierto");
+    }
   });
 }
 
@@ -127,18 +138,24 @@ const referenciaId = document.getElementById("referencia_id");
 const TIPO_POR_NIVEL = { producto: "productos", droga: "drogas", laboratorio: "laboratorios" };
 const ETIQUETA_POR_NIVEL = { producto: "Producto", droga: "Droga", laboratorio: "Laboratorio" };
 
-nivelSelect.addEventListener("change", () => {
+function actualizarBloqueReferencia() {
   const nivel = nivelSelect.value;
-  referenciaTexto.value = "";
-  referenciaId.value = "";
-  if (nivel === "general" || nivel === "") {
+  if (nivel === "general") {
     bloqueReferencia.style.display = "none";
   } else {
     bloqueReferencia.style.display = "block";
     etiquetaReferencia.textContent = ETIQUETA_POR_NIVEL[nivel];
     referenciaTexto.placeholder = `Buscar ${ETIQUETA_POR_NIVEL[nivel].toLowerCase()}...`;
   }
+}
+
+nivelSelect.addEventListener("change", () => {
+  referenciaTexto.value = "";
+  referenciaId.value = "";
+  actualizarBloqueReferencia();
 });
+
+actualizarBloqueReferencia();  // sincroniza el campo con el nivel preseleccionado al cargar
 
 configurarAutocompletar({
   inputTexto: referenciaTexto,

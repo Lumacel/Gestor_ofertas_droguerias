@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block titulo %}Consultar ofertas{% endblock %}
+{% block nav_consultar %}activo{% endblock %}
+{% block clase_main %}ancho{% endblock %}
+
+{% block contenido %}
+<h1>Consultar ofertas</h1>
+<p class="subtitulo">Filtrá por cualquier combinación de estos campos. Dejá vacío lo que no quieras usar como filtro.</p>
+
+<div class="tarjeta">
+  <form id="formulario_busqueda">
+    <div class="fila-doble">
+      <div>
+        <label for="f_nombre">Nombre del producto</label>
+        <div class="autocompletar">
+          <input type="text" id="f_nombre" placeholder="ej. ibupirac" autocomplete="off">
+          <div class="sugerencias" id="f_nombre_sugerencias"></div>
+        </div>
+      </div>
+      <div>
+        <label for="f_laboratorio">Laboratorio</label>
+        <div class="autocompletar">
+          <input type="text" id="f_laboratorio" placeholder="ej. bayer" autocomplete="off">
+          <div class="sugerencias" id="f_laboratorio_sugerencias"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fila-doble">
+      <div>
+        <label for="f_drogueria">Droguería</label>
+        <div class="autocompletar">
+          <input type="text" id="f_drogueria" placeholder="ej. liek" autocomplete="off">
+          <div class="sugerencias" id="f_drogueria_sugerencias"></div>
+        </div>
+      </div>
+      <div>
+        <label for="f_droga">Droga (principio activo)</label>
+        <div class="autocompletar">
+          <input type="text" id="f_droga" placeholder="ej. diclofenac" autocomplete="off">
+          <div class="sugerencias" id="f_droga_sugerencias"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fila-doble">
+      <div>
+        <label for="f_porcentaje">Descuento mínimo (%)</label>
+        <input type="number" id="f_porcentaje" step="0.01" min="0" max="100" placeholder="ej. 20">
+      </div>
+      <div>
+        <label for="f_codigo">Código de barras (exacto)</label>
+        <input type="text" id="f_codigo" placeholder="ej. 7791909123077">
+      </div>
+    </div>
+
+    <div class="fila-doble">
+      <div>
+        <label for="f_troquel">Troquel (exacto)</label>
+        <input type="text" id="f_troquel" placeholder="ej. 7791909123077">
+      </div>
+      <div></div>
+    </div>
+
+    <label style="display:flex; align-items:center; gap:8px; font-weight:400; text-transform:none; letter-spacing:normal; color:var(--texto); font-size:14px;">
+      <input type="checkbox" id="f_todos_los_niveles" style="width:auto;">
+      Mostrar todos los niveles (no solo la mejor oferta de cada producto)
+    </label>
+
+    <button type="submit" id="boton_buscar">Buscar</button>
+  </form>
+</div>
+
+<div id="resultados"></div>
+
+<script>
+function debounce(fn, espera) {
+  let temporizador;
+  return (...args) => {
+    clearTimeout(temporizador);
+    temporizador = setTimeout(() => fn(...args), espera);
+  };
+}
+
+function configurarAutocompletarBusqueda(inputId, tipo) {
+  const input = document.getElementById(inputId);
+  const contenedorSugerencias = document.getElementById(`${inputId}_sugerencias`);
+
+  const buscar = debounce(async (texto) => {
+    const resp = await fetch(`/api/buscar?tipo=${tipo}&q=${encodeURIComponent(texto)}`);
+    const resultados = await resp.json();
+
+    contenedorSugerencias.innerHTML = "";
+    if (!Array.isArray(resultados) || resultados.length === 0) {
+      contenedorSugerencias.classList.remove("abierto");
+      return;
+    }
+    resultados.forEach((r) => {
+      const opcion = document.createElement("div");
+      opcion.textContent = r.nombre;
+      opcion.addEventListener("click", () => {
+        input.value = r.nombre;
+        contenedorSugerencias.classList.remove("abierto");
+      });
+      contenedorSugerencias.appendChild(opcion);
+    });
+    contenedorSugerencias.classList.add("abierto");
+  }, 250);
+
+  // a diferencia de "Cargar descuento", ac\u00e1 no hay un id oculto que
+  // completar: elegir una sugerencia solo prolija el texto (corrige
+  // mayusculas/tildes), pero buscar con texto libre sigue funcionando
+  // igual gracias al ILIKE del backend.
+  input.addEventListener("input", () => buscar(input.value));
+  input.addEventListener("focus", () => buscar(input.value));
+  input.addEventListener("blur", () => {
+    setTimeout(() => contenedorSugerencias.classList.remove("abierto"), 150);
+  });
+  input.parentElement.addEventListener("mouseleave", () => {
+    if (document.activeElement !== input) {
+      contenedorSugerencias.classList.remove("abierto");
+    }
+  });
+}
+
+configurarAutocompletarBusqueda("f_nombre", "productos");
+configurarAutocompletarBusqueda("f_laboratorio", "laboratorios");
+configurarAutocompletarBusqueda("f_drogueria", "droguerias");
+configurarAutocompletarBusqueda("f_droga", "drogas");
+
+function armarQuery() {
+  const campos = {
+    nombre: document.getElementById("f_nombre").value.trim(),
+    laboratorio: document.getElementById("f_laboratorio").value.trim(),
+    droga: document.getElementById("f_droga").value.trim(),
+    drogueria: document.getElementById("f_drogueria").value.trim(),
+    porcentaje_minimo: document.getElementById("f_porcentaje").value.trim(),
+    codigo: document.getElementById("f_codigo").value.trim(),
+    troquel: document.getElementById("f_troquel").value.trim(),
+  };
+  const parametros = new URLSearchParams();
+  Object.entries(campos).forEach(([clave, valor]) => {
+    if (valor) parametros.set(clave, valor);
+  });
+  const todosLosNiveles = document.getElementById("f_todos_los_niveles").checked;
+  parametros.set("solo_mejores", todosLosNiveles ? "false" : "true");
+  return parametros.toString();
+}
+
+function formatearFecha(iso) {
+  if (!iso) return "—";
+  const [anio, mes, dia] = iso.split("-");
+  return `${dia}/${mes}/${anio}`;
+}
+
+const ETIQUETA_NIVEL = {
+  producto: "Producto",
+  droga: "Droga",
+  laboratorio: "Laboratorio",
+  general: "General",
+};
+
+function renderizarResultados(filas, mostrandoTodosLosNiveles) {
+  const contenedor = document.getElementById("resultados");
+
+  if (!filas.length) {
+    contenedor.innerHTML = `<div class="tarjeta"><p class="vacio">No se encontraron ofertas con esos filtros.</p></div>`;
+    return;
+  }
+
+  const filasHtml = filas.map((f) => {
+    const marcar = mostrandoTodosLosNiveles && f.es_mejor;
+    return `
+    <tr class="${marcar ? "fila-ganadora" : ""}">
+      <td>${f.producto}</td>
+      <td>${f.laboratorio || "—"}</td>
+      <td>${f.droga || "—"}</td>
+      <td>${f.drogueria}</td>
+      <td>${ETIQUETA_NIVEL[f.nivel_aplicacion] || f.nivel_aplicacion}</td>
+      <td class="porcentaje">${marcar ? "✓ " : ""}${Number(f.porcentaje).toFixed(2)}%</td>
+      <td>${f.cantidad_minima ?? "—"}</td>
+      <td>${formatearFecha(f.fecha_carga)}</td>
+      <td>${formatearFecha(f.fecha_fin)}</td>
+    </tr>
+  `;
+  }).join("");
+
+  contenedor.innerHTML = `
+    <div class="tarjeta">
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Laboratorio</th>
+            <th>Droga</th>
+            <th>Droguería</th>
+            <th>Nivel</th>
+            <th>%</th>
+            <th>Cant. mín.</th>
+            <th>Vigente desde</th>
+            <th>Vence</th>
+          </tr>
+        </thead>
+        <tbody>${filasHtml}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+document.getElementById("formulario_busqueda").addEventListener("submit", async (evento) => {
+  evento.preventDefault();
+  const boton = document.getElementById("boton_buscar");
+  const contenedor = document.getElementById("resultados");
+
+  boton.disabled = true;
+  boton.textContent = "Buscando...";
+  contenedor.innerHTML = "";
+
+  try {
+    const resp = await fetch(`/api/ofertas?${armarQuery()}`);
+    if (!resp.ok) throw new Error("Error del servidor");
+    const filas = await resp.json();
+    const mostrandoTodosLosNiveles = document.getElementById("f_todos_los_niveles").checked;
+    renderizarResultados(filas, mostrandoTodosLosNiveles);
+  } catch (err) {
+    contenedor.innerHTML = `<div class="mensaje error">No se pudo completar la búsqueda.</div>`;
+  } finally {
+    boton.disabled = false;
+    boton.textContent = "Buscar";
+  }
+});
+
+// buscar automaticamente al entrar a la pagina, sin filtros (trae las mas recientes)
+document.getElementById("formulario_busqueda").dispatchEvent(new Event("submit"));
+</script>
+{% endblock %}

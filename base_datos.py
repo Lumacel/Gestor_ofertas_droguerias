@@ -86,27 +86,6 @@ class BaseDatos:
     # Descuentos (la parte que depende del nivel_aplicacion)
     # -----------------------------------------------------------------
 
-    def mejores_descuentos_de_producto(self, id_producto):
-        """Todos los descuentos vigentes que le tocan a un producto,
-        vengan de su propio id, de su droga, de su laboratorio, o de
-        un descuento general de la drogueria."""
-        consulta = """
-            SELECT dr.nombre AS drogueria, d.nivel_aplicacion,
-                   d.porcentaje, d.fecha_carga, d.fecha_fin
-            FROM productos p
-            JOIN descuentos d ON (
-                   (d.nivel_aplicacion = 'producto'    AND d.referencia_id = p.id)
-                OR (d.nivel_aplicacion = 'droga'        AND d.referencia_id = p.droga_id)
-                OR (d.nivel_aplicacion = 'laboratorio'  AND d.referencia_id = p.laboratorio_id)
-                OR (d.nivel_aplicacion = 'general')
-            )
-            JOIN droguerias dr ON dr.id = d.drogueria_id
-            WHERE p.id = %s
-              AND (d.fecha_fin IS NULL OR d.fecha_fin >= CURRENT_DATE)
-            ORDER BY d.porcentaje DESC;
-        """
-        return self._ejecutar(consulta, (id_producto,))
-
     def ranking_top_descuentos(self, limite=50):
         """Los mejores descuentos vigentes en general, resolviendo a
         que le aplican (producto / droga / laboratorio / todo)."""
@@ -128,55 +107,32 @@ class BaseDatos:
         """
         return self._ejecutar(consulta, (limite,))
 
-    def buscar_descuentos_por_droga(self, nombre_droga, limite=50):
-        """Todos los descuentos vigentes que le tocan a CUALQUIER
-        producto que tenga esa droga, vengan de los 3 caminos posibles:
-        el descuento de la droga en si, el del laboratorio de cada
-        producto que la contiene, o el general de cada drogueria.
-
-        Se necesita DISTINCT porque el JOIN pasa por 'productos': si
-        3 productos distintos comparten la misma droga, un descuento
-        'general' o 'laboratorio' que les toca a los 3 aparaceria
-        3 veces sin el DISTINCT (una por cada producto que hizo
-        match), aunque sea la misma fila de 'descuentos'."""
-        consulta = """
-            SELECT DISTINCT
-                   dr.nombre AS drogueria,
-                   d.nivel_aplicacion,
-                   CASE d.nivel_aplicacion
-                       WHEN 'producto'    THEN (SELECT nombre FROM productos WHERE id = d.referencia_id)
-                       WHEN 'droga'       THEN (SELECT nombre FROM drogas WHERE id = d.referencia_id)
-                       WHEN 'laboratorio' THEN (SELECT nombre FROM laboratorios WHERE id = d.referencia_id)
-                       ELSE 'Todos los productos'
-                   END AS aplica_a,
-                   d.porcentaje, d.fecha_carga, d.fecha_fin
-            FROM drogas dg
-            JOIN productos p ON p.droga_id = dg.id
-            JOIN descuentos d ON (
-                   (d.nivel_aplicacion = 'producto'    AND d.referencia_id = p.id)
-                OR (d.nivel_aplicacion = 'droga'        AND d.referencia_id = p.droga_id)
-                OR (d.nivel_aplicacion = 'laboratorio'  AND d.referencia_id = p.laboratorio_id)
-                OR (d.nivel_aplicacion = 'general')
-            )
-            JOIN droguerias dr ON dr.id = d.drogueria_id
-            WHERE dg.nombre ILIKE %s
-              AND (d.fecha_fin IS NULL OR d.fecha_fin >= CURRENT_DATE)
-            ORDER BY d.porcentaje DESC
-            LIMIT %s;
-        """
-        return self._ejecutar(consulta, (f"%{nombre_droga}%", limite))
-
-    def buscar_ofertas(self, codigo=None, troquel=None, nombre=None,
+    def buscar_ofertas(self, producto_id=None, codigo=None, troquel=None, nombre=None,
                         laboratorio=None, droga=None, drogueria=None,
-                        porcentaje_minimo=None, limite=50):
+                        porcentaje_minimo=None, solo_mejores=True, limite=100):
         """Busqueda combinada: cualquier filtro que venga en None se
-        ignora, y los que si vienen se combinan con AND. codigo/troquel
-        se buscan exactos (son identificadores); nombre/laboratorio/
-        droga/drogueria se buscan parciales (ILIKE); porcentaje_minimo
-        filtra 'al menos este descuento', no un valor exacto."""
+        ignora, y los que si vienen se combinan con AND. producto_id
+        es para cuando ya tenes el id a mano (ej. el usuario lo eligio
+        de una lista) y no hace falta buscarlo de nuevo por texto;
+        codigo/troquel se buscan exactos (son identificadores);
+        nombre/laboratorio/droga/drogueria se buscan parciales (ILIKE);
+        porcentaje_minimo filtra 'al menos este descuento', no un
+        valor exacto.
+
+        solo_mejores=True (por defecto) descarta las filas que perdieron
+        frente a otra oferta para el mismo producto+drogueria -- para
+        uso diario no interesa ver el descuento general si ya hay uno
+        mejor por laboratorio para ese mismo producto. Con
+        solo_mejores=False se ven todos los niveles que compiten, con
+        'es_mejor' marcando cual gano -- util para auditar o depurar,
+        como cuando cargamos un descuento de prueba para verificar la
+        logica."""
         condiciones = ["(d.fecha_fin IS NULL OR d.fecha_fin >= CURRENT_DATE)"]
         parametros = []
 
+        if producto_id:
+            condiciones.append("p.id = %s")
+            parametros.append(producto_id)
         if codigo:
             condiciones.append("p.codigo = %s")
             parametros.append(codigo)
@@ -185,37 +141,45 @@ class BaseDatos:
             parametros.append(troquel)
         if nombre:
             condiciones.append("p.nombre ILIKE %s")
-            parametros.append(f"{nombre}")
+            parametros.append(f"%{nombre}%")
         if laboratorio:
             condiciones.append("lab.nombre ILIKE %s")
-            parametros.append(f"{laboratorio}")
+            parametros.append(f"%{laboratorio}%")
         if droga:
             condiciones.append("dg.nombre ILIKE %s")
-            parametros.append(f"{droga}")
+            parametros.append(f"%{droga}%")
         if drogueria:
             condiciones.append("dr.nombre ILIKE %s")
-            parametros.append(f"{drogueria}")
+            parametros.append(f"%{drogueria}%")
         if porcentaje_minimo is not None:
             condiciones.append("d.porcentaje >= %s")
             parametros.append(porcentaje_minimo)
 
         consulta = f"""
-            SELECT p.id AS producto_id, p.nombre AS producto, p.codigo, p.troquel,
-                   lab.nombre AS laboratorio, dg.nombre AS droga,
-                   dr.nombre AS drogueria, d.nivel_aplicacion, d.porcentaje,
-                   d.cantidad_minima, d.fecha_carga, d.fecha_fin
-            FROM productos p
-            LEFT JOIN laboratorios lab ON lab.id = p.laboratorio_id
-            LEFT JOIN drogas dg ON dg.id = p.droga_id
-            JOIN descuentos d ON (
-                   (d.nivel_aplicacion = 'producto'    AND d.referencia_id = p.id)
-                OR (d.nivel_aplicacion = 'droga'        AND d.referencia_id = p.droga_id)
-                OR (d.nivel_aplicacion = 'laboratorio'  AND d.referencia_id = p.laboratorio_id)
-                OR (d.nivel_aplicacion = 'general')
+            WITH resultados AS (
+                SELECT p.id AS producto_id, p.nombre AS producto, p.codigo, p.troquel,
+                       lab.nombre AS laboratorio, dg.nombre AS droga,
+                       dr.nombre AS drogueria, d.nivel_aplicacion, d.porcentaje,
+                       d.cantidad_minima, d.fecha_carga, d.fecha_fin,
+                       RANK() OVER (
+                           PARTITION BY p.id, d.drogueria_id
+                           ORDER BY d.porcentaje DESC
+                       ) = 1 AS es_mejor
+                FROM productos p
+                LEFT JOIN laboratorios lab ON lab.id = p.laboratorio_id
+                LEFT JOIN drogas dg ON dg.id = p.droga_id
+                JOIN descuentos d ON (
+                       (d.nivel_aplicacion = 'producto'    AND d.referencia_id = p.id)
+                    OR (d.nivel_aplicacion = 'droga'        AND d.referencia_id = p.droga_id)
+                    OR (d.nivel_aplicacion = 'laboratorio'  AND d.referencia_id = p.laboratorio_id)
+                    OR (d.nivel_aplicacion = 'general')
+                )
+                JOIN droguerias dr ON dr.id = d.drogueria_id
+                WHERE {" AND ".join(condiciones)}
             )
-            JOIN droguerias dr ON dr.id = d.drogueria_id
-            WHERE {" AND ".join(condiciones)}
-            ORDER BY d.porcentaje DESC
+            SELECT * FROM resultados
+            {"WHERE es_mejor" if solo_mejores else ""}
+            ORDER BY porcentaje DESC, producto
             LIMIT %s;
         """
         parametros.append(limite)

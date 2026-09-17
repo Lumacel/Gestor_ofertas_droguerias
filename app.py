@@ -15,15 +15,37 @@ Para correrlo:
 Despues abrís http://localhost:5000 en el navegador.
 """
 
-from datetime import date
+from datetime import date, date as date_type
+from decimal import Decimal
 from flask import Flask, render_template, request, jsonify
 from base_datos import BaseDatos
+
 app = Flask(__name__)
+
+
+def serializar_valor(v):
+    """jsonify no sabe convertir Decimal ni date por si solo -- los
+    resultados de porcentaje (numeric) y las fechas vienen asi desde
+    psycopg2, hay que pasarlos a tipos que sean JSON-nativos."""
+    if isinstance(v, Decimal):
+        return float(v)
+    if isinstance(v, date_type):
+        return v.isoformat()
+    return v
+
+
+def serializar_fila(fila):
+    return {k: serializar_valor(v) for k, v in fila.items()}
 
 
 @app.route("/")
 def index():
     return render_template("cargar_descuento.html")
+
+
+@app.route("/consultar")
+def consultar():
+    return render_template("consultar_ofertas.html")
 
 
 @app.route("/api/buscar")
@@ -92,6 +114,36 @@ def api_crear_descuento():
         )
 
     return jsonify({"ok": True, "id": id_creado})
+
+
+@app.route("/api/ofertas")
+def api_ofertas():
+    """Busqueda combinada para la pantalla de consulta. Todos los
+    parametros son opcionales -- si no vienen, ese filtro se ignora."""
+    codigo = request.args.get("codigo") or None
+    troquel = request.args.get("troquel") or None
+    nombre = request.args.get("nombre") or None
+    laboratorio = request.args.get("laboratorio") or None
+    droga = request.args.get("droga") or None
+    drogueria = request.args.get("drogueria") or None
+    porcentaje_minimo = request.args.get("porcentaje_minimo") or None
+    # por defecto solo se ven las ofertas ganadoras; el frontend manda
+    # "false" explicito cuando el usuario tilda "mostrar todos los niveles"
+    solo_mejores = request.args.get("solo_mejores", "true") != "false"
+
+    with BaseDatos() as db:
+        resultados = db.buscar_ofertas(
+            codigo=codigo,
+            troquel=troquel,
+            nombre=nombre,
+            laboratorio=laboratorio,
+            droga=droga,
+            drogueria=drogueria,
+            porcentaje_minimo=porcentaje_minimo,
+            solo_mejores=solo_mejores,
+        )
+
+    return jsonify([serializar_fila(r) for r in resultados])
 
 
 if __name__ == "__main__":

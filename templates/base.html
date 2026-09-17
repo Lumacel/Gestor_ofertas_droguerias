@@ -44,6 +44,7 @@
     margin: 40px auto;
     padding: 0 20px 60px;
   }
+  main.ancho { max-width: 1180px; }
   h1 { font-size: 22px; margin-bottom: 4px; }
   .subtitulo { color: var(--texto-suave); margin-top: 0; margin-bottom: 28px; font-size: 14px; }
   .tarjeta {
@@ -54,15 +55,19 @@
   }
   label {
     display: block;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
-    margin-bottom: 6px;
-    margin-top: 30px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--texto-suave);
+    margin-bottom: 8px;
   }
-  label:first-of-type { margin-top: 0; }
+  form > * { margin-top: 28px; }
+  form > *:first-child { margin-top: 0; }
+  form > button { margin-top: 36px; }
   input, select {
     width: 100%;
-    padding: 9px 11px;
+    padding: 10px 12px;
     border: 1px solid var(--borde);
     border-radius: 6px;
     font-size: 14px;
@@ -72,9 +77,9 @@
   input:focus, select:focus {
     outline: 2px solid var(--azul);
     outline-offset: 1px;
-    border-color: var(--azul); 
+    border-color: var(--azul);
   }
-  .fila-doble { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px;}
+  .fila-doble { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   .ayuda { font-size: 12px; color: var(--texto-suave); margin-top: 4px; }
   .autocompletar { position: relative; }
   .sugerencias {
@@ -122,6 +127,27 @@
   .mensaje.error { background: var(--error-fondo); color: var(--error); }
   .mensaje.ok { background: var(--ok-fondo); color: var(--ok-texto); }
   .mensaje ul { margin: 4px 0 0 18px; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    font-size: 13.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--borde);
+  }
+  th {
+    background: var(--fondo);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  tr:hover td { background: #fafbfc; }
+  .porcentaje { font-weight: 700; color: var(--azul-oscuro); }
+  .fila-ganadora td { background: var(--ok-fondo); }
+  .fila-ganadora:hover td { background: #ddf0e4; }
+  .vacio { color: var(--texto-suave); text-align: center; padding: 30px 0; }
 </style>
 </head>
 <body>
@@ -130,7 +156,7 @@
     <a href="/" class="{% block nav_cargar %}{% endblock %}">Cargar descuento</a>
     <a href="/consultar" class="{% block nav_consultar %}{% endblock %}">Consultar ofertas</a>
   </nav>
-  <main>
+  <main class="{% block clase_main %}{% endblock %}">
     {% block contenido %}{% endblock %}
   </main>
 </body>
