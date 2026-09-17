@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block titulo %}Droguerías{% endblock %}</title>
+<style>
+  :root {
+    --azul: #1f4e79;
+    --azul-oscuro: #163a5c;
+    --texto: #2b2b2b;
+    --texto-suave: #6b6b6b;
+    --borde: #d9dde2;
+    --fondo: #f7f8fa;
+    --error: #b3261e;
+    --error-fondo: #fbeceb;
+    --ok-fondo: #e8f3ec;
+    --ok-texto: #1e6b3c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--texto);
+    background: var(--fondo);
+  }
+  nav {
+    background: var(--azul);
+    padding: 14px 24px;
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+  nav a {
+    color: #fff;
+    text-decoration: none;
+    font-size: 15px;
+    opacity: 0.85;
+  }
+  nav a.activo, nav a:hover { opacity: 1; text-decoration: underline; }
+  nav .marca { color: #fff; font-weight: 600; margin-right: 12px; }
+  main {
+    max-width: 620px;
+    margin: 40px auto;
+    padding: 0 20px 60px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitulo { color: var(--texto-suave); margin-top: 0; margin-bottom: 28px; font-size: 14px; }
+  .tarjeta {
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-radius: 10px;
+    padding: 28px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    margin-top: 30px;
+  }
+  label:first-of-type { margin-top: 0; }
+  input, select {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid var(--borde);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--texto);
+  }
+  input:focus, select:focus {
+    outline: 2px solid var(--azul);
+    outline-offset: 1px;
+    border-color: var(--azul); 
+  }
+  .fila-doble { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px;}
+  .ayuda { font-size: 12px; color: var(--texto-suave); margin-top: 4px; }
+  .autocompletar { position: relative; }
+  .sugerencias {
+    position: absolute;
+    top: 100%;
+    left: 0; right: 0;
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 10;
+    display: none;
+  }
+  .sugerencias.abierto { display: block; }
+  .sugerencias div {
+    padding: 8px 11px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .sugerencias div:hover, .sugerencias div.resaltado {
+    background: var(--fondo);
+  }
+  button {
+    margin-top: 26px;
+    width: 100%;
+    background: var(--azul);
+    color: #fff;
+    border: none;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { background: var(--azul-oscuro); }
+  button:disabled { background: #a9b7c3; cursor: not-allowed; }
+  .mensaje {
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  .mensaje.error { background: var(--error-fondo); color: var(--error); }
+  .mensaje.ok { background: var(--ok-fondo); color: var(--ok-texto); }
+  .mensaje ul { margin: 4px 0 0 18px; padding: 0; }
+</style>
+</head>
+<body>
+  <nav>
+    <span class="marca">Droguerías</span>
+    <a href="/" class="{% block nav_cargar %}{% endblock %}">Cargar descuento</a>
+    <a href="/consultar" class="{% block nav_consultar %}{% endblock %}">Consultar ofertas</a>
+  </nav>
+  <main>
+    {% block contenido %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block titulo %}Cargar descuento{% endblock %}
+{% block nav_cargar %}activo{% endblock %}
+
+{% block contenido %}
+<h1>Cargar descuento</h1>
+<p class="subtitulo">Registrá una oferta de una droguería: puede aplicar a un producto puntual, a una droga, a un laboratorio, o de forma general.</p>
+
+<div class="tarjeta">
+  <form id="formulario">
+
+    <label for="drogueria">Droguería</label>
+    <div class="autocompletar">
+      <input type="text" id="drogueria_texto" placeholder="Escribí para buscar..." autocomplete="off" required>
+      <input type="hidden" id="drogueria_id">
+      <div class="sugerencias" id="drogueria_sugerencias"></div>
+    </div>
+
+    <label for="nivel_aplicacion">Nivel de aplicación</label>
+    <select id="nivel_aplicacion" required>
+      <option value="">Elegí una opción...</option>
+      <option value="producto">Producto puntual</option>
+      <option value="droga">Droga (principio activo)</option>
+      <option value="laboratorio">Laboratorio</option>
+      <option value="general">General (toda la droguería)</option>
+    </select>
+
+    <div id="bloque_referencia" style="display:none;">
+      <label for="referencia_texto" id="etiqueta_referencia">A qué aplica</label>
+      <div class="autocompletar">
+        <input type="text" id="referencia_texto" placeholder="Escribí para buscar..." autocomplete="off">
+        <input type="hidden" id="referencia_id">
+        <div class="sugerencias" id="referencia_sugerencias"></div>
+      </div>
+    </div>
+
+    <div class="fila-doble">
+      <div>
+        <label for="porcentaje">Porcentaje de descuento</label>
+        <input type="number" id="porcentaje" step="0.01" min="0" max="100" placeholder="35.00" required>
+      </div>
+      <div>
+        <label for="cantidad_minima">Cantidad mínima (opcional)</label>
+        <input type="number" id="cantidad_minima" step="1" min="1" placeholder="Sin mínimo">
+      </div>
+    </div>
+
+    <div class="fila-doble">
+      <div>
+        <label for="fecha_carga">Vigente desde</label>
+        <input type="date" id="fecha_carga">
+        <p class="ayuda">Si lo dejás vacío, se usa la fecha de hoy.</p>
+      </div>
+      <div>
+        <label for="fecha_fin">Vence el (opcional)</label>
+        <input type="date" id="fecha_fin">
+      </div>
+    </div>
+
+    <button type="submit" id="boton_guardar">Guardar descuento</button>
+  </form>
+
+  <div id="mensaje"></div>
+</div>
+
+<script>
+function debounce(fn, espera) {
+  let temporizador;
+  return (...args) => {
+    clearTimeout(temporizador);
+    temporizador = setTimeout(() => fn(...args), espera);
+  };
+}
+
+function configurarAutocompletar({ inputTexto, inputId, contenedorSugerencias, obtenerTipo }) {
+  const buscar = debounce(async (texto) => {
+    const tipo = obtenerTipo();
+    if (!tipo) {
+      contenedorSugerencias.classList.remove("abierto");
+      return;
+    }
+    const resp = await fetch(`/api/buscar?tipo=${tipo}&q=${encodeURIComponent(texto)}`);
+    const resultados = await resp.json();
+
+    contenedorSugerencias.innerHTML = "";
+    if (!Array.isArray(resultados) || resultados.length === 0) {
+      contenedorSugerencias.classList.remove("abierto");
+      return;
+    }
+    resultados.forEach((r) => {
+      const opcion = document.createElement("div");
+      opcion.textContent = r.nombre;
+      opcion.addEventListener("click", () => {
+        inputTexto.value = r.nombre;
+        inputId.value = r.id;
+        contenedorSugerencias.classList.remove("abierto");
+      });
+      contenedorSugerencias.appendChild(opcion);
+    });
+    contenedorSugerencias.classList.add("abierto");
+  }, 250);
+
+  inputTexto.addEventListener("input", () => {
+    inputId.value = "";  // si el usuario sigue tipeando, invalida la seleccion previa
+    buscar(inputTexto.value);
+  });
+  inputTexto.addEventListener("blur", () => {
+    setTimeout(() => contenedorSugerencias.classList.remove("abierto"), 150);
+  });
+}
+
+// -------- droguería --------
+configurarAutocompletar({
+  inputTexto: document.getElementById("drogueria_texto"),
+  inputId: document.getElementById("drogueria_id"),
+  contenedorSugerencias: document.getElementById("drogueria_sugerencias"),
+  obtenerTipo: () => "droguerias",
+});
+
+// -------- referencia (depende del nivel elegido) --------
+const nivelSelect = document.getElementById("nivel_aplicacion");
+const bloqueReferencia = document.getElementById("bloque_referencia");
+const etiquetaReferencia = document.getElementById("etiqueta_referencia");
+const referenciaTexto = document.getElementById("referencia_texto");
+const referenciaId = document.getElementById("referencia_id");
+
+const TIPO_POR_NIVEL = { producto: "productos", droga: "drogas", laboratorio: "laboratorios" };
+const ETIQUETA_POR_NIVEL = { producto: "Producto", droga: "Droga", laboratorio: "Laboratorio" };
+
+nivelSelect.addEventListener("change", () => {
+  const nivel = nivelSelect.value;
+  referenciaTexto.value = "";
+  referenciaId.value = "";
+  if (nivel === "general" || nivel === "") {
+    bloqueReferencia.style.display = "none";
+  } else {
+    bloqueReferencia.style.display = "block";
+    etiquetaReferencia.textContent = ETIQUETA_POR_NIVEL[nivel];
+    referenciaTexto.placeholder = `Buscar ${ETIQUETA_POR_NIVEL[nivel].toLowerCase()}...`;
+  }
+});
+
+configurarAutocompletar({
+  inputTexto: referenciaTexto,
+  inputId: referenciaId,
+  contenedorSugerencias: document.getElementById("referencia_sugerencias"),
+  obtenerTipo: () => TIPO_POR_NIVEL[nivelSelect.value],
+});
+
+// -------- envio del formulario --------
+document.getElementById("formulario").addEventListener("submit", async (evento) => {
+  evento.preventDefault();
+  const mensaje = document.getElementById("mensaje");
+  const boton = document.getElementById("boton_guardar");
+  mensaje.innerHTML = "";
+
+  const nivel = nivelSelect.value;
+
+  if (!document.getElementById("drogueria_id").value) {
+    mensaje.innerHTML = `<div class="mensaje error">Elegí una droguería de la lista de sugerencias.</div>`;
+    return;
+  }
+  if (nivel !== "general" && !referenciaId.value) {
+    mensaje.innerHTML = `<div class="mensaje error">Elegí ${ETIQUETA_POR_NIVEL[nivel] ? ETIQUETA_POR_NIVEL[nivel].toLowerCase() : "una opción"} de la lista de sugerencias.</div>`;
+    return;
+  }
+
+  const cuerpo = {
+    drogueria_id: document.getElementById("drogueria_id").value,
+    nivel_aplicacion: nivel,
+    referencia_id: nivel === "general" ? null : referenciaId.value,
+    porcentaje: document.getElementById("porcentaje").value,
+    cantidad_minima: document.getElementById("cantidad_minima").value || null,
+    fecha_carga: document.getElementById("fecha_carga").value || null,
+    fecha_fin: document.getElementById("fecha_fin").value || null,
+  };
+
+  boton.disabled = true;
+  boton.textContent = "Guardando...";
+
+  try {
+    const resp = await fetch("/api/descuentos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpo),
+    });
+    const datos = await resp.json();
+
+    if (resp.ok && datos.ok) {
+      mensaje.innerHTML = `<div class="mensaje ok">Descuento guardado (id ${datos.id}).</div>`;
+      document.getElementById("formulario").reset();
+      document.getElementById("drogueria_id").value = "";
+      referenciaId.value = "";
+      bloqueReferencia.style.display = "none";
+    } else {
+      const lista = (datos.errores || ["No se pudo guardar."]).map((e) => `<li>${e}</li>`).join("");
+      mensaje.innerHTML = `<div class="mensaje error">Revisá lo siguiente:<ul>${lista}</ul></div>`;
+    }
+  } catch (err) {
+    mensaje.innerHTML = `<div class="mensaje error">No se pudo conectar con el servidor.</div>`;
+  } finally {
+    boton.disabled = false;
+    boton.textContent = "Guardar descuento";
+  }
+});
+</script>
+{% endblock %}

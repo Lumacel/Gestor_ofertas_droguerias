@@ -1,0 +1,319 @@
+"""
+basedatos.py
+============
+Adaptado al esquema real (ver estructura_base_datos.docx):
+
+    laboratorios(id, nombre)
+    drogas(id, nombre)
+    droguerias(id, nombre, contacto)
+    productos(id, nombre, codigo, troquel, laboratorio_id, droga_id)
+    descuentos(id, drogueria_id, nivel_aplicacion, referencia_id,
+               porcentaje, fecha_carga, fecha_fin)
+
+Lo importante para entender las consultas de abajo: un descuento no
+esta atado siempre a un producto. Segun 'nivel_aplicacion', referencia_id
+puede ser el id de un producto, de una droga, de un laboratorio, o no
+usarse en absoluto (nivel 'general' = aplica a todo lo de esa drogueria).
+Por eso, para saber "que descuentos le tocan a este producto puntual"
+hay que revisar los 4 caminos posibles, no solo un JOIN directo.
+"""
+
+import os
+import psycopg2
+import psycopg2.extras
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent / ".env")
+
+
+class BaseDatos:
+    def __init__(self, database_url=None):
+        self.database_url = database_url or os.environ["DATABASE_URL"]
+        self.conn = None
+
+    def __enter__(self):
+        self.conn = psycopg2.connect(self.database_url)
+        return self
+
+    def __exit__(self, tipo_excepcion, valor_excepcion, traceback):
+        if tipo_excepcion is None:
+            self.conn.commit()
+        else:
+            self.conn.rollback()
+        self.conn.close()
+        return False
+
+    def _ejecutar(self, consulta, parametros=()):
+        with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(consulta, parametros)
+            return cur.fetchall()
+
+    # -----------------------------------------------------------------
+    # Busqueda de productos
+    # -----------------------------------------------------------------
+
+    def buscar_por_nombre(self, texto_busqueda, limite=20):
+        """Busqueda fuzzy por nombre comercial. Requiere la extension
+        pg_trgm activada una vez en la base:
+            CREATE EXTENSION IF NOT EXISTS pg_trgm;
+        """
+        consulta = """
+            SELECT p.id, p.nombre, p.troquel,
+                   lab.nombre AS laboratorio, dg.nombre AS droga,
+                   similarity(p.nombre, %s) AS score
+            FROM productos p
+            LEFT JOIN laboratorios lab ON lab.id = p.laboratorio_id
+            LEFT JOIN drogas dg ON dg.id = p.droga_id
+            WHERE p.nombre %% %s
+            ORDER BY score DESC
+            LIMIT %s;
+        """
+        return self._ejecutar(consulta, (texto_busqueda, texto_busqueda, limite))
+
+    def buscar_por_monodroga(self, droga, limite=50):
+        """Busqueda por principio activo."""
+        consulta = """
+            SELECT p.id, p.nombre, dg.nombre AS droga
+            FROM productos p
+            JOIN drogas dg ON dg.id = p.droga_id
+            WHERE dg.nombre ILIKE %s
+            LIMIT %s;
+        """
+        return self._ejecutar(consulta, (f"%{droga}%", limite))
+
+    # -----------------------------------------------------------------
+    # Descuentos (la parte que depende del nivel_aplicacion)
+    # -----------------------------------------------------------------
+
+    def mejores_descuentos_de_producto(self, id_producto):
+        """Todos los descuentos vigentes que le tocan a un producto,
+        vengan de su propio id, de su droga, de su laboratorio, o de
+        un descuento general de la drogueria."""
+        consulta = """
+            SELECT dr.nombre AS drogueria, d.nivel_aplicacion,
+                   d.porcentaje, d.fecha_carga, d.fecha_fin
+            FROM productos p
+            JOIN descuentos d ON (
+                   (d.nivel_aplicacion = 'producto'    AND d.referencia_id = p.id)
+                OR (d.nivel_aplicacion = 'droga'        AND d.referencia_id = p.droga_id)
+                OR (d.nivel_aplicacion = 'laboratorio'  AND d.referencia_id = p.laboratorio_id)
+                OR (d.nivel_aplicacion = 'general')
+            )
+            JOIN droguerias dr ON dr.id = d.drogueria_id
+            WHERE p.id = %s
+              AND (d.fecha_fin IS NULL OR d.fecha_fin >= CURRENT_DATE)
+            ORDER BY d.porcentaje DESC;
+        """
+        return self._ejecutar(consulta, (id_producto,))
+
+    def ranking_top_descuentos(self, limite=50):
+        """Los mejores descuentos vigentes en general, resolviendo a
+        que le aplican (producto / droga / laboratorio / todo)."""
+        consulta = """
+            SELECT dr.nombre AS drogueria,
+                   d.nivel_aplicacion,
+                   CASE d.nivel_aplicacion
+                       WHEN 'producto'    THEN (SELECT nombre FROM productos WHERE id = d.referencia_id)
+                       WHEN 'droga'       THEN (SELECT nombre FROM drogas WHERE id = d.referencia_id)
+                       WHEN 'laboratorio' THEN (SELECT nombre FROM laboratorios WHERE id = d.referencia_id)
+                       ELSE 'Todos los productos'
+                   END AS aplica_a,
+                   d.porcentaje, d.fecha_carga, d.fecha_fin
+            FROM descuentos d
+            JOIN droguerias dr ON dr.id = d.drogueria_id
+            WHERE (d.fecha_fin IS NULL OR d.fecha_fin >= CURRENT_DATE)
+            ORDER BY d.porcentaje DESC
+            LIMIT %s;
+        """
+        return self._ejecutar(consulta, (limite,))
+
+    def buscar_descuentos_por_droga(self, nombre_droga, limite=50):
+        """Todos los descuentos vigentes que le tocan a CUALQUIER
+        producto que tenga esa droga, vengan de los 3 caminos posibles:
+        el descuento de la droga en si, el del laboratorio de cada
+        producto que la contiene, o el general de cada drogueria.
+
+        Se necesita DISTINCT porque el JOIN pasa por 'productos': si
+        3 productos distintos comparten la misma droga, un descuento
+        'general' o 'laboratorio' que les toca a los 3 aparaceria
+        3 veces sin el DISTINCT (una por cada producto que hizo
+        match), aunque sea la misma fila de 'descuentos'."""
+        consulta = """
+            SELECT DISTINCT
+                   dr.nombre AS drogueria,
+                   d.nivel_aplicacion,
+                   CASE d.nivel_aplicacion
+                       WHEN 'producto'    THEN (SELECT nombre FROM productos WHERE id = d.referencia_id)
+                       WHEN 'droga'       THEN (SELECT nombre FROM drogas WHERE id = d.referencia_id)
+                       WHEN 'laboratorio' THEN (SELECT nombre FROM laboratorios WHERE id = d.referencia_id)
+                       ELSE 'Todos los productos'
+                   END AS aplica_a,
+                   d.porcentaje, d.fecha_carga, d.fecha_fin
+            FROM drogas dg
+            JOIN productos p ON p.droga_id = dg.id
+            JOIN descuentos d ON (
+                   (d.nivel_aplicacion = 'producto'    AND d.referencia_id = p.id)
+                OR (d.nivel_aplicacion = 'droga'        AND d.referencia_id = p.droga_id)
+                OR (d.nivel_aplicacion = 'laboratorio'  AND d.referencia_id = p.laboratorio_id)
+                OR (d.nivel_aplicacion = 'general')
+            )
+            JOIN droguerias dr ON dr.id = d.drogueria_id
+            WHERE dg.nombre ILIKE %s
+              AND (d.fecha_fin IS NULL OR d.fecha_fin >= CURRENT_DATE)
+            ORDER BY d.porcentaje DESC
+            LIMIT %s;
+        """
+        return self._ejecutar(consulta, (f"%{nombre_droga}%", limite))
+
+    def buscar_ofertas(self, codigo=None, troquel=None, nombre=None,
+                        laboratorio=None, droga=None, drogueria=None,
+                        porcentaje_minimo=None, limite=50):
+        """Busqueda combinada: cualquier filtro que venga en None se
+        ignora, y los que si vienen se combinan con AND. codigo/troquel
+        se buscan exactos (son identificadores); nombre/laboratorio/
+        droga/drogueria se buscan parciales (ILIKE); porcentaje_minimo
+        filtra 'al menos este descuento', no un valor exacto."""
+        condiciones = ["(d.fecha_fin IS NULL OR d.fecha_fin >= CURRENT_DATE)"]
+        parametros = []
+
+        if codigo:
+            condiciones.append("p.codigo = %s")
+            parametros.append(codigo)
+        if troquel:
+            condiciones.append("p.troquel = %s")
+            parametros.append(troquel)
+        if nombre:
+            condiciones.append("p.nombre ILIKE %s")
+            parametros.append(f"{nombre}")
+        if laboratorio:
+            condiciones.append("lab.nombre ILIKE %s")
+            parametros.append(f"{laboratorio}")
+        if droga:
+            condiciones.append("dg.nombre ILIKE %s")
+            parametros.append(f"{droga}")
+        if drogueria:
+            condiciones.append("dr.nombre ILIKE %s")
+            parametros.append(f"{drogueria}")
+        if porcentaje_minimo is not None:
+            condiciones.append("d.porcentaje >= %s")
+            parametros.append(porcentaje_minimo)
+
+        consulta = f"""
+            SELECT p.id AS producto_id, p.nombre AS producto, p.codigo, p.troquel,
+                   lab.nombre AS laboratorio, dg.nombre AS droga,
+                   dr.nombre AS drogueria, d.nivel_aplicacion, d.porcentaje,
+                   d.cantidad_minima, d.fecha_carga, d.fecha_fin
+            FROM productos p
+            LEFT JOIN laboratorios lab ON lab.id = p.laboratorio_id
+            LEFT JOIN drogas dg ON dg.id = p.droga_id
+            JOIN descuentos d ON (
+                   (d.nivel_aplicacion = 'producto'    AND d.referencia_id = p.id)
+                OR (d.nivel_aplicacion = 'droga'        AND d.referencia_id = p.droga_id)
+                OR (d.nivel_aplicacion = 'laboratorio'  AND d.referencia_id = p.laboratorio_id)
+                OR (d.nivel_aplicacion = 'general')
+            )
+            JOIN droguerias dr ON dr.id = d.drogueria_id
+            WHERE {" AND ".join(condiciones)}
+            ORDER BY d.porcentaje DESC
+            LIMIT %s;
+        """
+        parametros.append(limite)
+        return self._ejecutar(consulta, tuple(parametros))
+
+    # -----------------------------------------------------------------
+    # Zona de aterrizaje (staging_productos)
+    # -----------------------------------------------------------------
+
+    def pendientes_en_staging(self, limite=100):
+        """Filas crudas cargadas en staging_productos que todavia no
+        se resolvieron contra productos/drogas/laboratorios."""
+        consulta = """
+            SELECT producto, laboratorio, codigo, droga
+            FROM staging_productos
+            LIMIT %s;
+        """
+        return self._ejecutar(consulta, (limite,))
+
+    # -----------------------------------------------------------------
+    # Carga: resolver laboratorio/droga y crear el producto
+    # -----------------------------------------------------------------
+
+    def obtener_o_crear_laboratorio(self, nombre):
+        return self._obtener_o_crear("laboratorios", nombre)
+
+    def obtener_o_crear_droga(self, nombre):
+        return self._obtener_o_crear("drogas", nombre)
+
+    def _obtener_o_crear(self, tabla, nombre):
+        """Inserta 'nombre' en la tabla si no existe, y devuelve su id
+        en cualquier caso (exista ya o se acabe de crear). El truco es
+        el 'ON CONFLICT ... DO UPDATE': si el nombre ya existe, en vez
+        de fallar por la restriccion UNIQUE, lo 'actualiza' con el
+        mismo valor -- lo cual no cambia nada, pero permite que el
+        RETURNING siempre traiga el id, se haya insertado o no."""
+        if nombre is None or (isinstance(nombre, float) and nombre != nombre):  # NaN
+            return None
+        nombre_limpio = str(nombre).strip()
+        if not nombre_limpio:
+            return None
+        assert tabla in ("laboratorios", "drogas")  # nunca interpolar tabla libre
+        consulta = f"""
+            INSERT INTO {tabla} (nombre) VALUES (%s)
+            ON CONFLICT (nombre) DO UPDATE SET nombre = EXCLUDED.nombre
+            RETURNING id;
+        """
+        resultado = self._ejecutar(consulta, (nombre_limpio,))
+        return resultado[0]["id"] if resultado else None
+
+    def insertar_producto_si_no_existe(self, nombre, codigo, troquel, laboratorio_id, droga_id):
+        """Inserta el producto. Si ya existe uno con el mismo codigo o
+        el mismo troquel (las dos columnas UNIQUE de la tabla), no
+        rompe ni duplica: simplemente no hace nada, gracias a
+        'ON CONFLICT DO NOTHING' sin especificar columna -- eso hace
+        que aplique ante CUALQUIER restriccion unica que se pise."""
+        consulta = """
+            INSERT INTO productos (nombre, codigo, troquel, laboratorio_id, droga_id)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT DO NOTHING
+            RETURNING id;
+        """
+        resultado = self._ejecutar(consulta, (nombre, codigo, troquel, laboratorio_id, droga_id))
+        return resultado[0]["id"] if resultado else None
+
+    # -----------------------------------------------------------------
+    # Busqueda generica de entidades (para autocompletar en la web)
+    # -----------------------------------------------------------------
+
+    def buscar_entidad(self, tabla, texto, limite=20):
+        """Busca por nombre en 'productos', 'drogas', 'laboratorios' o
+        'droguerias'. 'tabla' viene siempre de una lista fija (nunca
+        de texto libre del usuario), por eso es seguro interpolarla."""
+        assert tabla in ("productos", "drogas", "laboratorios", "droguerias")
+        consulta = f"""
+            SELECT id, nombre
+            FROM {tabla}
+            WHERE nombre ILIKE %s
+            ORDER BY nombre
+            LIMIT %s;
+        """
+        return self._ejecutar(consulta, (f"%{texto}%", limite))
+
+    # -----------------------------------------------------------------
+    # Carga de descuentos
+    # -----------------------------------------------------------------
+
+    def insertar_descuento(self, drogueria_id, nivel_aplicacion, referencia_id,
+                            porcentaje, fecha_carga, fecha_fin, cantidad_minima):
+        consulta = """
+            INSERT INTO descuentos
+                (drogueria_id, nivel_aplicacion, referencia_id, porcentaje,
+                 fecha_carga, fecha_fin, cantidad_minima)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id;
+        """
+        resultado = self._ejecutar(consulta, (
+            drogueria_id, nivel_aplicacion, referencia_id, porcentaje,
+            fecha_carga, fecha_fin, cantidad_minima,
+        ))
+        return resultado[0]["id"] if resultado else None
