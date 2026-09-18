@@ -9,9 +9,10 @@
     --azul: #1f4e79;
     --azul-oscuro: #163a5c;
     --texto: #2b2b2b;
-    --texto-suave: #6b6b6b;
-    --borde: #d9dde2;
-    --fondo: #f7f8fa;
+    --texto-claro: #fff;
+    --texto-suave: #444343;
+    --borde: #8cbdf8;
+    --fondo: #bfd7e7;
     --error: #b3261e;
     --error-fondo: #fbeceb;
     --ok-fondo: #e8f3ec;
@@ -45,10 +46,10 @@
     padding: 0 20px 60px;
   }
   main.ancho { max-width: 1180px; }
-  h1 { font-size: 22px; margin-bottom: 4px; }
+  h1 { font-size: 22px; margin-bottom: 4px; text-transform: uppercase; color: var(--texto); }
   .subtitulo { color: var(--texto-suave); margin-top: 0; margin-bottom: 28px; font-size: 14px; }
   .tarjeta {
-    background: #fff;
+    background: #dee7ec;
     border: 1px solid var(--borde);
     border-radius: 10px;
     padding: 28px;
@@ -59,7 +60,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--texto-suave);
+    color: var(--texto);
     margin-bottom: 8px;
   }
   form > * { margin-top: 28px; }

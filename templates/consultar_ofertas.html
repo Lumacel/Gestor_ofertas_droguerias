@@ -62,10 +62,20 @@
       <div></div>
     </div>
 
-    <label style="display:flex; align-items:center; gap:8px; font-weight:400; text-transform:none; letter-spacing:normal; color:var(--texto); font-size:14px;">
-      <input type="checkbox" id="f_todos_los_niveles" style="width:auto;">
-      Mostrar todos los niveles (no solo la mejor oferta de cada producto)
-    </label>
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+      <label style="display:flex; align-items:center; gap:8px; font-weight:400; text-transform:none; letter-spacing:normal; color:var(--texto); font-size:14px; margin:0;">
+        <input type="checkbox" id="f_todos_los_niveles" style="width:auto;">
+        Mostrar todos los niveles (no solo la mejor oferta de cada producto)
+      </label>
+
+      <label style="display:flex; align-items:center; gap:8px; font-weight:400; text-transform:none; letter-spacing:normal; color:var(--texto); font-size:14px; margin:0;">
+        Ordenar por:
+        <select id="f_orden" style="width:auto;">
+          <option value="porcentaje">Mejor oferta primero</option>
+          <option value="nombre">Nombre del producto</option>
+        </select>
+      </label>
+    </div>
 
     <button type="submit" id="boton_buscar">Buscar</button>
   </form>
@@ -144,6 +154,7 @@ function armarQuery() {
   });
   const todosLosNiveles = document.getElementById("f_todos_los_niveles").checked;
   parametros.set("solo_mejores", todosLosNiveles ? "false" : "true");
+  parametros.set("orden", document.getElementById("f_orden").value);
   return parametros.toString();
 }
 
@@ -207,8 +218,7 @@ function renderizarResultados(filas, mostrandoTodosLosNiveles) {
   `;
 }
 
-document.getElementById("formulario_busqueda").addEventListener("submit", async (evento) => {
-  evento.preventDefault();
+async function ejecutarBusqueda() {
   const boton = document.getElementById("boton_buscar");
   const contenedor = document.getElementById("resultados");
 
@@ -228,9 +238,20 @@ document.getElementById("formulario_busqueda").addEventListener("submit", async 
     boton.disabled = false;
     boton.textContent = "Buscar";
   }
+}
+
+document.getElementById("formulario_busqueda").addEventListener("submit", (evento) => {
+  evento.preventDefault();
+  ejecutarBusqueda();
 });
 
+// el checkbox y el selector de orden disparan la busqueda solos,
+// sin esperar a que se apriete "Buscar" -- son cambios de como se
+// MUESTRA lo ya buscado, no filtros nuevos que ameriten confirmar
+document.getElementById("f_todos_los_niveles").addEventListener("change", ejecutarBusqueda);
+document.getElementById("f_orden").addEventListener("change", ejecutarBusqueda);
+
 // buscar automaticamente al entrar a la pagina, sin filtros (trae las mas recientes)
-document.getElementById("formulario_busqueda").dispatchEvent(new Event("submit"));
+ejecutarBusqueda();
 </script>
 {% endblock %}

@@ -130,6 +130,9 @@ def api_ofertas():
     # por defecto solo se ven las ofertas ganadoras; el frontend manda
     # "false" explicito cuando el usuario tilda "mostrar todos los niveles"
     solo_mejores = request.args.get("solo_mejores", "true") != "false"
+    orden = request.args.get("orden", "porcentaje")
+    if orden not in ("porcentaje", "nombre"):
+        orden = "porcentaje"
 
     with BaseDatos() as db:
         resultados = db.buscar_ofertas(
@@ -141,6 +144,7 @@ def api_ofertas():
             drogueria=drogueria,
             porcentaje_minimo=porcentaje_minimo,
             solo_mejores=solo_mejores,
+            orden=orden,
         )
 
     return jsonify([serializar_fila(r) for r in resultados])

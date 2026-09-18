@@ -109,7 +109,8 @@ class BaseDatos:
 
     def buscar_ofertas(self, producto_id=None, codigo=None, troquel=None, nombre=None,
                         laboratorio=None, droga=None, drogueria=None,
-                        porcentaje_minimo=None, solo_mejores=True, limite=100):
+                        porcentaje_minimo=None, solo_mejores=True, orden="porcentaje",
+                        limite=100):
         """Busqueda combinada: cualquier filtro que venga en None se
         ignora, y los que si vienen se combinan con AND. producto_id
         es para cuando ya tenes el id a mano (ej. el usuario lo eligio
@@ -126,7 +127,13 @@ class BaseDatos:
         solo_mejores=False se ven todos los niveles que compiten, con
         'es_mejor' marcando cual gano -- util para auditar o depurar,
         como cuando cargamos un descuento de prueba para verificar la
-        logica."""
+        logica.
+
+        orden="porcentaje" (por defecto) muestra primero las mejores
+        ofertas, sin importar a que producto pertenecen. orden="nombre"
+        agrupa todo por producto (alfabetico) y dentro de cada uno
+        ordena por porcentaje -- util para comparar de un vistazo las
+        distintas ofertas de un mismo producto entre si."""
         condiciones = ["(d.fecha_fin IS NULL OR d.fecha_fin >= CURRENT_DATE)"]
         parametros = []
 
@@ -179,7 +186,7 @@ class BaseDatos:
             )
             SELECT * FROM resultados
             {"WHERE es_mejor" if solo_mejores else ""}
-            ORDER BY porcentaje DESC, producto
+            ORDER BY {"producto, porcentaje DESC" if orden == "nombre" else "porcentaje DESC, producto"}
             LIMIT %s;
         """
         parametros.append(limite)
