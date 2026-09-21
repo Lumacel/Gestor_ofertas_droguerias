@@ -29,3 +29,6 @@ log/
 # Archivos de sistema
 .DS_Store
 Thumbs.db
+
+# Archivos de datos
+datos_excel/
