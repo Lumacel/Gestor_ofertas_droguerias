@@ -6,6 +6,12 @@
 <h1>Cargar descuento</h1>
 <p class="subtitulo">Registrá una oferta de una droguería: puede aplicar a un producto puntual, a una droga, a un laboratorio, o de forma general.</p>
 
+<div class="pestanas">
+  <button type="button" class="pestana activa" data-pestana="individual">Carga individual</button>
+  <button type="button" class="pestana" data-pestana="excel">Desde Excel</button>
+</div>
+
+<div class="seccion-pestana activa" id="seccion-individual">
 <div class="tarjeta">
   <form id="formulario">
 
@@ -48,22 +54,47 @@
       </div>
     </div>
 
-    <div class="fila-doble">
-      <div>
-        <label for="fecha_carga">Vigente desde</label>
-        <input type="date" id="fecha_carga">
-        <p class="ayuda">Si lo dejás vacío, se usa la fecha de hoy.</p>
-      </div>
-      <div>
-        <label for="fecha_fin">Vence el (opcional)</label>
-        <input type="date" id="fecha_fin">
-      </div>
+    <div>
+      <label for="fecha_fin">Vence el (opcional)</label>
+      <input type="date" id="fecha_fin">
     </div>
 
     <button type="submit" id="boton_guardar">Guardar descuento</button>
   </form>
 
   <div id="mensaje"></div>
+</div>
+</div>
+
+<div class="seccion-pestana" id="seccion-excel">
+  <div class="tarjeta">
+    <p class="subtitulo" style="margin-top:0;">
+      Todas las filas del archivo se cargan como descuentos para <strong>productos puntuales</strong>
+      de una sola droguería (la indicás una vez abajo, no hace falta repetirla en cada fila).
+      Columnas del excel: <strong>nombre</strong>, <strong>codigo de barras</strong>, <strong>troquel</strong>,
+      <strong>descuento</strong> y <strong>cantidad mínima</strong> (opcional)
+      — el orden no importa. El producto se busca primero por código de barras o troquel exacto,
+      y si no los tenés, por nombre parecido. Lo que no se encuentre no se inventa: se junta en un
+      reporte para que lo cargues a mano después en "Productos y catálogos".
+    </p>
+    <form id="form_excel_ofertas">
+      <div>
+        <label for="drogueria_excel">Droguería de esta lista</label>
+        <div class="autocompletar">
+          <input type="text" id="drogueria_excel" placeholder="Escribí para buscar o crear una nueva..." autocomplete="off" required>
+          <div class="sugerencias" id="drogueria_excel_sugerencias"></div>
+        </div>
+      </div>
+      <div>
+        <label for="fecha_fin_excel">Vence el (opcional, aplica a todo el archivo)</label>
+        <input type="date" id="fecha_fin_excel">
+      </div>
+      <label for="archivo_ofertas">Archivo Excel (.xlsx)</label>
+      <input type="file" id="archivo_ofertas" accept=".xlsx" required>
+      <button type="submit" id="boton_cargar_excel_ofertas">Cargar archivo</button>
+    </form>
+    <div id="mensaje_excel_ofertas"></div>
+  </div>
 </div>
 
 <script>
@@ -188,7 +219,6 @@ document.getElementById("formulario").addEventListener("submit", async (evento) 
     referencia_id: nivel === "general" ? null : referenciaId.value,
     porcentaje: document.getElementById("porcentaje").value,
     cantidad_minima: document.getElementById("cantidad_minima").value || null,
-    fecha_carga: document.getElementById("fecha_carga").value || null,
     fecha_fin: document.getElementById("fecha_fin").value || null,
   };
 
@@ -218,6 +248,100 @@ document.getElementById("formulario").addEventListener("submit", async (evento) 
   } finally {
     boton.disabled = false;
     boton.textContent = "Guardar descuento";
+  }
+});
+
+// -------- cambio de pestañas --------
+document.querySelectorAll(".pestana").forEach((boton) => {
+  boton.addEventListener("click", () => {
+    document.querySelectorAll(".pestana").forEach((b) => b.classList.remove("activa"));
+    document.querySelectorAll(".seccion-pestana").forEach((s) => s.classList.remove("activa"));
+    boton.classList.add("activa");
+    document.getElementById(`seccion-${boton.dataset.pestana}`).classList.add("activa");
+  });
+});
+
+// -------- autocompletado libre de drogueria para el excel (puede ser nueva) --------
+const droExcelInput = document.getElementById("drogueria_excel");
+const droExcelSugerencias = document.getElementById("drogueria_excel_sugerencias");
+const buscarDroExcel = debounce(async (texto) => {
+  const resp = await fetch(`/api/buscar?tipo=droguerias&q=${encodeURIComponent(texto)}`);
+  const resultados = await resp.json();
+  droExcelSugerencias.innerHTML = "";
+  if (!Array.isArray(resultados) || resultados.length === 0) {
+    droExcelSugerencias.classList.remove("abierto");
+    return;
+  }
+  resultados.forEach((r) => {
+    const opcion = document.createElement("div");
+    opcion.textContent = r.nombre;
+    opcion.addEventListener("click", () => {
+      droExcelInput.value = r.nombre;
+      droExcelSugerencias.classList.remove("abierto");
+    });
+    droExcelSugerencias.appendChild(opcion);
+  });
+  droExcelSugerencias.classList.add("abierto");
+}, 250);
+droExcelInput.addEventListener("input", () => buscarDroExcel(droExcelInput.value));
+droExcelInput.addEventListener("focus", () => buscarDroExcel(droExcelInput.value));
+droExcelInput.addEventListener("blur", () => {
+  setTimeout(() => droExcelSugerencias.classList.remove("abierto"), 150);
+});
+droExcelInput.parentElement.addEventListener("mouseleave", () => {
+  if (document.activeElement !== droExcelInput) droExcelSugerencias.classList.remove("abierto");
+});
+
+// -------- form: carga de ofertas desde excel --------
+document.getElementById("form_excel_ofertas").addEventListener("submit", async (evento) => {
+  evento.preventDefault();
+  const boton = document.getElementById("boton_cargar_excel_ofertas");
+  const mensaje = document.getElementById("mensaje_excel_ofertas");
+  mensaje.innerHTML = "";
+
+  const archivo = document.getElementById("archivo_ofertas").files[0];
+  const drogueria = droExcelInput.value.trim();
+  if (!archivo || !drogueria) return;
+
+  const formData = new FormData();
+  formData.append("archivo", archivo);
+  formData.append("drogueria", drogueria);
+  const fechaFinExcel = document.getElementById("fecha_fin_excel").value;
+  if (fechaFinExcel) formData.append("fecha_fin", fechaFinExcel);
+
+  boton.disabled = true;
+  boton.textContent = "Cargando...";
+  try {
+    const resp = await fetch("/api/descuentos/excel", { method: "POST", body: formData });
+    const datos = await resp.json();
+    if (resp.ok && datos.ok) {
+      const avisoReporte = datos.reporte_url
+        ? `<p style="margin-top:10px;">
+             ${datos.no_encontrados} producto(s) no se encontraron en la base.
+             <a href="${datos.reporte_url}" style="color:inherit; text-decoration:underline;">Descargar reporte</a>
+             para revisarlos y cargarlos en "Productos y catálogos".
+           </p>`
+        : "";
+      mensaje.innerHTML = `
+        <div class="mensaje ${datos.no_encontrados > 0 ? "error" : "ok"} resumen-carga">
+          Carga terminada.
+          <table>
+            <tr><td>Total de filas en el excel</td><td>${datos.total_filas}</td></tr>
+            <tr><td>Ofertas guardadas</td><td>${datos.insertados}</td></tr>
+            <tr><td>Productos no encontrados</td><td>${datos.no_encontrados}</td></tr>
+          </table>
+          ${avisoReporte}
+        </div>`;
+      document.getElementById("form_excel_ofertas").reset();
+    } else {
+      const lista = (datos.errores || ["No se pudo procesar el archivo."]).map((e) => `<li>${e}</li>`).join("");
+      mensaje.innerHTML = `<div class="mensaje error">Revisá lo siguiente:<ul>${lista}</ul></div>`;
+    }
+  } catch (err) {
+    mensaje.innerHTML = `<div class="mensaje error">No se pudo conectar con el servidor.</div>`;
+  } finally {
+    boton.disabled = false;
+    boton.textContent = "Cargar archivo";
   }
 });
 </script>

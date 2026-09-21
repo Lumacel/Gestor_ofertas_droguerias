@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block titulo %}Productos y catálogos{% endblock %}
+{% block nav_productos %}activo{% endblock %}
+{% block clase_main %}ancho{% endblock %}
+
+{% block contenido %}
+<h1>Productos y catálogos</h1>
+<p class="subtitulo">Cargá un producto nuevo, o una droguería, laboratorio o droga suelta.</p>
+
+<div class="pestanas">
+  <button type="button" class="pestana activa" data-pestana="individual">Producto individual</button>
+  <button type="button" class="pestana" data-pestana="catalogos">Droguería / laboratorio / droga</button>
+</div>
+
+<!-- ===================== Producto individual ===================== -->
+<div class="seccion-pestana activa" id="seccion-individual">
+  <div class="tarjeta">
+    <form id="form_producto">
+      <div class="fila-doble">
+        <div>
+          <label for="p_nombre">Nombre del producto</label>
+          <input type="text" id="p_nombre" placeholder="ej. IBUPIRAC 400 mg comp.x 10" required>
+        </div>
+        <div>
+          <label for="p_laboratorio">Laboratorio</label>
+          <div class="autocompletar">
+            <input type="text" id="p_laboratorio" placeholder="Escribí para buscar o crear uno nuevo..." autocomplete="off">
+            <div class="sugerencias" id="p_laboratorio_sugerencias"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fila-doble">
+        <div>
+          <label for="p_droga">Droga (principio activo)</label>
+          <div class="autocompletar">
+            <input type="text" id="p_droga" placeholder="Escribí para buscar o crear una nueva..." autocomplete="off">
+            <div class="sugerencias" id="p_droga_sugerencias"></div>
+          </div>
+        </div>
+        <div></div>
+      </div>
+
+      <div class="fila-doble">
+        <div>
+          <label for="p_codigo">Código de barras</label>
+          <input type="text" id="p_codigo" placeholder="ej. 7791909123077">
+        </div>
+        <div>
+          <label for="p_troquel">Troquel</label>
+          <input type="text" id="p_troquel" placeholder="Se completa con el tiempo si no lo tenés">
+        </div>
+      </div>
+
+      <p class="ayuda">Si el laboratorio o la droga que escribís no existen todavía, se crean solos — no hace falta darlos de alta antes.</p>
+
+      <button type="submit" id="boton_guardar_producto">Guardar producto</button>
+    </form>
+    <div id="mensaje_producto"></div>
+  </div>
+</div>
+
+<!-- ===================== Droguería / laboratorio / droga ===================== -->
+<div class="seccion-pestana" id="seccion-catalogos">
+  <div class="tarjeta">
+    <form id="form_catalogo">
+      <label for="c_tipo">Qué querés agregar</label>
+      <select id="c_tipo" required>
+        <option value="drogueria">Droguería</option>
+        <option value="laboratorio">Laboratorio</option>
+        <option value="droga">Droga (principio activo)</option>
+      </select>
+
+      <label for="c_nombre">Nombre</label>
+      <input type="text" id="c_nombre" placeholder="ej. FARMASUN" required>
+
+      <div id="c_bloque_contacto">
+        <label for="c_contacto">Contacto (opcional, solo para droguerías)</label>
+        <input type="text" id="c_contacto" placeholder="email o teléfono">
+      </div>
+
+      <button type="submit" id="boton_guardar_catalogo">Guardar</button>
+    </form>
+    <div id="mensaje_catalogo"></div>
+  </div>
+</div>
+
+<script>
+// -------- cambio de pestañas --------
+document.querySelectorAll(".pestana").forEach((boton) => {
+  boton.addEventListener("click", () => {
+    document.querySelectorAll(".pestana").forEach((b) => b.classList.remove("activa"));
+    document.querySelectorAll(".seccion-pestana").forEach((s) => s.classList.remove("activa"));
+    boton.classList.add("activa");
+    document.getElementById(`seccion-${boton.dataset.pestana}`).classList.add("activa");
+  });
+});
+
+// -------- autocompletado (igual patron que las otras paginas) --------
+function debounce(fn, espera) {
+  let temporizador;
+  return (...args) => {
+    clearTimeout(temporizador);
+    temporizador = setTimeout(() => fn(...args), espera);
+  };
+}
+
+function configurarAutocompletarLibre(inputId, tipo) {
+  const input = document.getElementById(inputId);
+  const contenedorSugerencias = document.getElementById(`${inputId}_sugerencias`);
+
+  const buscar = debounce(async (texto) => {
+    const resp = await fetch(`/api/buscar?tipo=${tipo}&q=${encodeURIComponent(texto)}`);
+    const resultados = await resp.json();
+    contenedorSugerencias.innerHTML = "";
+    if (!Array.isArray(resultados) || resultados.length === 0) {
+      contenedorSugerencias.classList.remove("abierto");
+      return;
+    }
+    resultados.forEach((r) => {
+      const opcion = document.createElement("div");
+      opcion.textContent = r.nombre;
+      opcion.addEventListener("click", () => {
+        input.value = r.nombre;
+        contenedorSugerencias.classList.remove("abierto");
+      });
+      contenedorSugerencias.appendChild(opcion);
+    });
+    contenedorSugerencias.classList.add("abierto");
+  }, 250);
+
+  input.addEventListener("input", () => buscar(input.value));
+  input.addEventListener("focus", () => buscar(input.value));
+  input.addEventListener("blur", () => {
+    setTimeout(() => contenedorSugerencias.classList.remove("abierto"), 150);
+  });
+  input.parentElement.addEventListener("mouseleave", () => {
+    if (document.activeElement !== input) contenedorSugerencias.classList.remove("abierto");
+  });
+}
+
+configurarAutocompletarLibre("p_laboratorio", "laboratorios");
+configurarAutocompletarLibre("p_droga", "drogas");
+
+// -------- form: producto individual --------
+document.getElementById("form_producto").addEventListener("submit", async (evento) => {
+  evento.preventDefault();
+  const boton = document.getElementById("boton_guardar_producto");
+  const mensaje = document.getElementById("mensaje_producto");
+  mensaje.innerHTML = "";
+
+  const cuerpo = {
+    nombre: document.getElementById("p_nombre").value.trim(),
+    laboratorio: document.getElementById("p_laboratorio").value.trim(),
+    droga: document.getElementById("p_droga").value.trim(),
+    codigo: document.getElementById("p_codigo").value.trim(),
+    troquel: document.getElementById("p_troquel").value.trim(),
+  };
+
+  boton.disabled = true;
+  boton.textContent = "Guardando...";
+  try {
+    const resp = await fetch("/api/productos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpo),
+    });
+    const datos = await resp.json();
+    if (resp.ok && datos.ok) {
+      mensaje.innerHTML = `<div class="mensaje ok">Producto guardado (id ${datos.id}).</div>`;
+      document.getElementById("form_producto").reset();
+    } else {
+      const lista = (datos.errores || ["No se pudo guardar."]).map((e) => `<li>${e}</li>`).join("");
+      mensaje.innerHTML = `<div class="mensaje error">Revisá lo siguiente:<ul>${lista}</ul></div>`;
+    }
+  } catch (err) {
+    mensaje.innerHTML = `<div class="mensaje error">No se pudo conectar con el servidor.</div>`;
+  } finally {
+    boton.disabled = false;
+    boton.textContent = "Guardar producto";
+  }
+});
+
+// -------- form: alta de catalogo suelto --------
+const tipoSelect = document.getElementById("c_tipo");
+const bloqueContacto = document.getElementById("c_bloque_contacto");
+function actualizarBloqueContacto() {
+  bloqueContacto.style.display = tipoSelect.value === "drogueria" ? "block" : "none";
+}
+tipoSelect.addEventListener("change", actualizarBloqueContacto);
+actualizarBloqueContacto();
+
+document.getElementById("form_catalogo").addEventListener("submit", async (evento) => {
+  evento.preventDefault();
+  const boton = document.getElementById("boton_guardar_catalogo");
+  const mensaje = document.getElementById("mensaje_catalogo");
+  mensaje.innerHTML = "";
+
+  const cuerpo = {
+    tipo: tipoSelect.value,
+    nombre: document.getElementById("c_nombre").value.trim(),
+    contacto: document.getElementById("c_contacto").value.trim(),
+  };
+
+  boton.disabled = true;
+  boton.textContent = "Guardando...";
+  try {
+    const resp = await fetch("/api/catalogos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpo),
+    });
+    const datos = await resp.json();
+    if (resp.ok && datos.ok) {
+      mensaje.innerHTML = `<div class="mensaje ok">Guardado (id ${datos.id}).</div>`;
+      document.getElementById("form_catalogo").reset();
+      actualizarBloqueContacto();
+    } else {
+      const lista = (datos.errores || ["No se pudo guardar."]).map((e) => `<li>${e}</li>`).join("");
+      mensaje.innerHTML = `<div class="mensaje error">Revisá lo siguiente:<ul>${lista}</ul></div>`;
+    }
+  } catch (err) {
+    mensaje.innerHTML = `<div class="mensaje error">No se pudo conectar con el servidor.</div>`;
+  } finally {
+    boton.disabled = false;
+    boton.textContent = "Guardar";
+  }
+});
+</script>
+{% endblock %}

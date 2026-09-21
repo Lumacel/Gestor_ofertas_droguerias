@@ -22,18 +22,7 @@ def main():
         #for fila in db.buscar_por_monodroga("memantine",10):
         #   print(fila)
 
-        #print("\n--- Busqueda de descuentos por droga : 'diclofenac potasico' ---")
-        #for fila in db.buscar_descuentos_por_droga("diclofenac potasico"):
-         #   print(fila)
-
-        #print("\n--- Top 10 descuentos vigentes ---")
-        #for fila in db.ranking_top_descuentos(limite=10):
-        #    print(fila)
-
-        #print("\n--- Top 10 descuentos vigentes ---")
-        #for fila in db.ranking_top_descuentos(limite=10):
-        #   print(fila)
-
+        
         print("\n--- Ofertas por drogueria y porcentaje ---")
         for fila in db.buscar_ofertas(droga="diclofenac", nombre="rodin", porcentaje_minimo=20):
             print('producto:',fila['producto'], "droga:", fila['droga'], "laboratorio:", fila['laboratorio'], "descuento:", fila['porcentaje'], "drogueria:", fila['drogueria'])

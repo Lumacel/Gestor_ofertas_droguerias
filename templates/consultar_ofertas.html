@@ -171,7 +171,7 @@ const ETIQUETA_NIVEL = {
   general: "General",
 };
 
-function renderizarResultados(filas, mostrandoTodosLosNiveles) {
+function renderizarResultados(filas, mostrandoTodosLosNiveles, orden) {
   const contenedor = document.getElementById("resultados");
 
   if (!filas.length) {
@@ -179,10 +179,11 @@ function renderizarResultados(filas, mostrandoTodosLosNiveles) {
     return;
   }
 
-  const filasHtml = filas.map((f) => {
-    const marcar = mostrandoTodosLosNiveles && f.es_mejor;
+  const filasHtml = filas.map((f, indice) => {
+    const marcar = mostrandoTodosLosNiveles && f.es_mejor && orden === "porcentaje";
     return `
     <tr class="${marcar ? "fila-ganadora" : ""}">
+      <td class="numero-fila">${indice + 1}</td>
       <td>${f.producto}</td>
       <td>${f.laboratorio || "—"}</td>
       <td>${f.droga || "—"}</td>
@@ -201,6 +202,7 @@ function renderizarResultados(filas, mostrandoTodosLosNiveles) {
       <table>
         <thead>
           <tr>
+            <th>#</th>
             <th>Producto</th>
             <th>Laboratorio</th>
             <th>Droga</th>
@@ -231,7 +233,8 @@ async function ejecutarBusqueda() {
     if (!resp.ok) throw new Error("Error del servidor");
     const filas = await resp.json();
     const mostrandoTodosLosNiveles = document.getElementById("f_todos_los_niveles").checked;
-    renderizarResultados(filas, mostrandoTodosLosNiveles);
+    const orden = document.getElementById("f_orden").value;
+    renderizarResultados(filas, mostrandoTodosLosNiveles, orden);
   } catch (err) {
     contenedor.innerHTML = `<div class="mensaje error">No se pudo completar la búsqueda.</div>`;
   } finally {

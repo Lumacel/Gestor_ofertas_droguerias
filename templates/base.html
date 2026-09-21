@@ -9,10 +9,9 @@
     --azul: #1f4e79;
     --azul-oscuro: #163a5c;
     --texto: #2b2b2b;
-    --texto-claro: #fff;
-    --texto-suave: #444343;
-    --borde: #8cbdf8;
-    --fondo: #bfd7e7;
+    --texto-suave: #6b6b6b;
+    --borde: #d9dde2;
+    --fondo: #f7f8fa;
     --error: #b3261e;
     --error-fondo: #fbeceb;
     --ok-fondo: #e8f3ec;
@@ -46,10 +45,10 @@
     padding: 0 20px 60px;
   }
   main.ancho { max-width: 1180px; }
-  h1 { font-size: 22px; margin-bottom: 4px; text-transform: uppercase; color: var(--texto); }
+  h1 { font-size: 22px; margin-bottom: 4px; }
   .subtitulo { color: var(--texto-suave); margin-top: 0; margin-bottom: 28px; font-size: 14px; }
   .tarjeta {
-    background: #dee7ec;
+    background: #fff;
     border: 1px solid var(--borde);
     border-radius: 10px;
     padding: 28px;
@@ -60,7 +59,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--texto);
+    color: var(--texto-suave);
     margin-bottom: 8px;
   }
   form > * { margin-top: 28px; }
@@ -146,9 +145,22 @@
   }
   tr:hover td { background: #fafbfc; }
   .porcentaje { font-weight: 700; color: var(--azul-oscuro); }
+  .numero-fila { color: var(--texto-suave); width: 30px; text-align: right; }
   .fila-ganadora td { background: var(--ok-fondo); }
   .fila-ganadora:hover td { background: #ddf0e4; }
   .vacio { color: var(--texto-suave); text-align: center; padding: 30px 0; }
+  .pestanas { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--borde); }
+  .pestana {
+    background: none; border: none; cursor: pointer;
+    padding: 10px 16px; font-size: 14px; font-weight: 600;
+    color: var(--texto-suave); border-bottom: 2px solid transparent;
+    margin-top: 0 !important;
+  }
+  .pestana.activa { color: var(--azul); border-bottom-color: var(--azul); }
+  .seccion-pestana { display: none; }
+  .seccion-pestana.activa { display: block; }
+  .resumen-carga { margin-top: 16px; }
+  .resumen-carga table { margin-top: 0; }
 </style>
 </head>
 <body>
@@ -156,6 +168,7 @@
     <span class="marca">Droguerías</span>
     <a href="/" class="{% block nav_cargar %}{% endblock %}">Cargar descuento</a>
     <a href="/consultar" class="{% block nav_consultar %}{% endblock %}">Consultar ofertas</a>
+    <a href="/productos" class="{% block nav_productos %}{% endblock %}">Productos y catálogos</a>
   </nav>
   <main class="{% block clase_main %}{% endblock %}">
     {% block contenido %}{% endblock %}
