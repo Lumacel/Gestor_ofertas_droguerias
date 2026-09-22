@@ -59,7 +59,10 @@
       <input type="date" id="fecha_fin">
     </div>
 
-    <button type="submit" id="boton_guardar">Guardar descuento</button>
+    <div class="fila-botones">
+      <button type="submit" id="boton_guardar">Guardar descuento</button>
+      <button type="button" id="boton_limpiar_descuento" class="boton-secundario">Limpiar campos</button>
+    </div>
   </form>
 
   <div id="mensaje"></div>
@@ -249,6 +252,14 @@ document.getElementById("formulario").addEventListener("submit", async (evento) 
     boton.disabled = false;
     boton.textContent = "Guardar descuento";
   }
+});
+
+document.getElementById("boton_limpiar_descuento").addEventListener("click", () => {
+  document.getElementById("formulario").reset();
+  document.getElementById("drogueria_id").value = "";
+  referenciaId.value = "";
+  bloqueReferencia.style.display = "none";
+  document.getElementById("mensaje").innerHTML = "";
 });
 
 // -------- cambio de pestañas --------

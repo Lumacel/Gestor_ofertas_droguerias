@@ -54,7 +54,10 @@
 
       <p class="ayuda">Si el laboratorio o la droga que escribís no existen todavía, se crean solos — no hace falta darlos de alta antes.</p>
 
-      <button type="submit" id="boton_guardar_producto">Guardar producto</button>
+      <div class="fila-botones">
+        <button type="submit" id="boton_guardar_producto">Guardar producto</button>
+        <button type="button" id="boton_limpiar_producto" class="boton-secundario">Limpiar campos</button>
+      </div>
     </form>
     <div id="mensaje_producto"></div>
   </div>
@@ -179,6 +182,11 @@ document.getElementById("form_producto").addEventListener("submit", async (event
     boton.disabled = false;
     boton.textContent = "Guardar producto";
   }
+});
+
+document.getElementById("boton_limpiar_producto").addEventListener("click", () => {
+  document.getElementById("form_producto").reset();
+  document.getElementById("mensaje_producto").innerHTML = "";
 });
 
 // -------- form: alta de catalogo suelto --------
