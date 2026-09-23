@@ -87,6 +87,12 @@
 <div id="resultados"></div>
 
 <script>
+// evita que un scroll accidental del mouse sobre un campo numerico le
+// sume/reste el "step" sin que el usuario se de cuenta
+document.querySelectorAll('input[type="number"]').forEach((el) => {
+  el.addEventListener("wheel", () => el.blur());
+});
+
 function debounce(fn, espera) {
   let temporizador;
   return (...args) => {
@@ -188,11 +194,11 @@ function renderizarResultados(filas, mostrandoTodosLosNiveles, orden) {
     <tr class="${marcar ? "fila-ganadora" : ""}">
       <td class="numero-fila">${indice + 1}</td>
       <td>${f.producto}</td>
+      <td class="porcentaje">${marcar ? "✓ " : ""}${Number(f.porcentaje).toFixed(2)}%</td>
+      <td>${f.drogueria}</td>
       <td>${f.laboratorio || "—"}</td>
       <td>${f.droga || "—"}</td>
-      <td>${f.drogueria}</td>
       <td>${ETIQUETA_NIVEL[f.nivel_aplicacion] || f.nivel_aplicacion}</td>
-      <td class="porcentaje">${marcar ? "✓ " : ""}${Number(f.porcentaje).toFixed(2)}%</td>
       <td>${f.cantidad_minima ?? "—"}</td>
       <td>${formatearFecha(f.fecha_carga)}</td>
       <td>${formatearFecha(f.fecha_fin)}</td>
@@ -201,24 +207,26 @@ function renderizarResultados(filas, mostrandoTodosLosNiveles, orden) {
   }).join("");
 
   contenedor.innerHTML = `
-    <div class="tarjeta">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Producto</th>
-            <th>Laboratorio</th>
-            <th>Droga</th>
-            <th>Droguería</th>
-            <th>Nivel</th>
-            <th>%</th>
-            <th>Cant. mín.</th>
-            <th>Vigente desde</th>
-            <th>Vence</th>
-          </tr>
-        </thead>
-        <tbody>${filasHtml}</tbody>
-      </table>
+    <div class="tarjeta tarjeta-tabla">
+      <div class="tabla-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Producto</th>
+              <th>%</th>
+              <th>Droguería</th>
+              <th>Laboratorio</th>
+              <th>Droga</th>
+              <th>Nivel</th>
+              <th>Cant. mín.</th>
+              <th>Vigente desde</th>
+              <th>Vence</th>
+            </tr>
+          </thead>
+          <tbody>${filasHtml}</tbody>
+        </table>
+      </div>
     </div>
   `;
 }

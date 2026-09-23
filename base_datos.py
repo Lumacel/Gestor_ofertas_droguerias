@@ -159,8 +159,12 @@ class BaseDatos:
             condiciones.append("lab.nombre ILIKE %s")
             parametros.append(f"%{laboratorio}%")
         if droga:
+            # exacta (sin %), para no traer combinaciones que solo
+            # CONTIENEN la droga buscada (ej. "diclofenac+pridinol"
+            # al buscar "diclofenac"). ILIKE sin comodines sigue
+            # siendo insensible a mayusculas/minusculas.
             condiciones.append("dg.nombre ILIKE %s")
-            parametros.append(f"%{droga}%")
+            parametros.append(droga)
         if drogueria:
             condiciones.append("dr.nombre ILIKE %s")
             parametros.append(f"%{drogueria}%")

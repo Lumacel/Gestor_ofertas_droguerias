@@ -9,8 +9,8 @@
     --azul: #1f4e79;
     --azul-oscuro: #163a5c;
     --texto: #2b2b2b;
-    --texto-suave: #242222;
-    --borde: #56a1fc;
+    --texto-suave: #6b6b6b;
+    --borde: #5a9ef1;
     --fondo: #d4e2fd;
     --error: #b3261e;
     --error-fondo: #fbeceb;
@@ -49,7 +49,7 @@
   h1 { font-size: 22px; margin-bottom: 4px; }
   .subtitulo { color: var(--texto-suave); margin-top: 0; margin-bottom: 28px; font-size: 14px; }
   .tarjeta {
-    background: #f9fcff;
+    background: #fff;
     border: 1px solid var(--borde);
     border-radius: 10px;
     padding: 28px;
@@ -60,7 +60,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--texto-suave);
+    color: var(--texto);
     margin-bottom: 8px;
   }
   form > * { margin-top: 28px; }
@@ -155,8 +155,33 @@
     white-space: nowrap;
   }
   tr:hover td { background: #fafbfc; }
-  .porcentaje { font-weight: 700; color: var(--azul-oscuro); }
+  .tarjeta-tabla { padding: 0; overflow: hidden; }
+  .tabla-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabla-scroll table {
+    min-width: 780px;  /* evita que las columnas se aplasten en pantallas chicas */
+    margin-top: 0;
+  }
+  .tabla-scroll table th:first-child,
+  .tabla-scroll table td:first-child { padding-left: 20px; }
+  .tabla-scroll table th:last-child,
+  .tabla-scroll table td:last-child { padding-right: 20px; }
+  .tabla-scroll table thead tr:first-child th { padding-top: 20px; }
+  @media (max-width: 700px) {
+    .tabla-scroll table {
+      font-size: 12.5px;
+      min-width: 480px;  /* mas chico que el de escritorio, para que entren # + Producto + % + Drogueria */
+    }
+    .tabla-scroll table th, .tabla-scroll table td { padding: 8px; }
+    .tabla-scroll table th:nth-child(2), .tabla-scroll table td:nth-child(2) {
+      max-width: 110px;
+      white-space: normal;
+    }
+  }
   .numero-fila { color: var(--texto-suave); width: 30px; text-align: right; }
+  .porcentaje { font-weight: 700; color: var(--azul-oscuro); }
   .fila-ganadora td { background: var(--ok-fondo); }
   .fila-ganadora:hover td { background: #ddf0e4; }
   .vacio { color: var(--texto-suave); text-align: center; padding: 30px 0; }

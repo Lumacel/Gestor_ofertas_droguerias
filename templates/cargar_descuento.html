@@ -101,6 +101,13 @@
 </div>
 
 <script>
+// evita que un scroll accidental del mouse sobre un campo numerico le
+// sume/reste el "step" sin que el usuario se de cuenta (comportamiento
+// por defecto del navegador en inputs type="number" enfocados)
+document.querySelectorAll('input[type="number"]').forEach((el) => {
+  el.addEventListener("wheel", () => el.blur());
+});
+
 function debounce(fn, espera) {
   let temporizador;
   return (...args) => {
@@ -241,7 +248,7 @@ document.getElementById("formulario").addEventListener("submit", async (evento) 
       document.getElementById("formulario").reset();
       document.getElementById("drogueria_id").value = "";
       referenciaId.value = "";
-      bloqueReferencia.style.display = "none";
+      actualizarBloqueReferencia();
     } else {
       const lista = (datos.errores || ["No se pudo guardar."]).map((e) => `<li>${e}</li>`).join("");
       mensaje.innerHTML = `<div class="mensaje error">Revisá lo siguiente:<ul>${lista}</ul></div>`;
@@ -258,7 +265,7 @@ document.getElementById("boton_limpiar_descuento").addEventListener("click", () 
   document.getElementById("formulario").reset();
   document.getElementById("drogueria_id").value = "";
   referenciaId.value = "";
-  bloqueReferencia.style.display = "none";
+  actualizarBloqueReferencia();
   document.getElementById("mensaje").innerHTML = "";
 });
 
