@@ -39,6 +39,10 @@
   }
   nav a.activo, nav a:hover { opacity: 1; text-decoration: underline; }
   nav .marca { color: #fff; font-weight: 600; margin-right: 12px; }
+  @media (max-width: 480px) {
+  .marca { display: none; }
+  .fila-doble { grid-template-columns: 1fr; }
+  }
   main {
     max-width: 620px;
     margin: 40px auto;
