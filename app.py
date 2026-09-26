@@ -225,16 +225,15 @@ def _mapear_columnas_ofertas(columnas):
             mapa["nombre"] = col
         elif "troquel" in norm and "troquel" not in mapa:
             mapa["troquel"] = col
-        elif "barra" in norm and "codigo" not in mapa:
+        elif ("barra" in norm or norm == "codigo") and "codigo" not in mapa:
             mapa["codigo"] = col
-        elif norm == "codigo" and "troquel" not in mapa:
-            mapa["troquel"] = col
         elif ("porcentaje" in norm or "descuento" in norm) and "porcentaje" not in mapa:
             mapa["porcentaje"] = col
         elif "cantidad" in norm and "cantidad_minima" not in mapa:
             mapa["cantidad_minima"] = col
     return mapa
 
+        
 
 def _valor_o_none(fila, mapa, clave):
     if clave not in mapa:

@@ -39,10 +39,7 @@
   }
   nav a.activo, nav a:hover { opacity: 1; text-decoration: underline; }
   nav .marca { color: #fff; font-weight: 600; margin-right: 12px; }
-  @media (max-width: 480px) {
-  .marca { display: none; }
-  .fila-doble { grid-template-columns: 1fr; }
-  }
+  
   main {
     max-width: 620px;
     margin: 40px auto;
@@ -67,7 +64,7 @@
     color: var(--texto);
     margin-bottom: 8px;
   }
-  form > * { margin-top: 28px; }
+  form > * { margin-top: 18px; }
   form > *:first-child { margin-top: 0; }
   form > button { margin-top: 36px; }
   input, select {
@@ -162,7 +159,14 @@
   .tarjeta-tabla { padding: 0; overflow: hidden; }
   .tabla-scroll {
     overflow-x: auto;
+    overflow-y: auto;
+    max-height: 70vh;
     -webkit-overflow-scrolling: touch;
+  }
+  .tabla-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
   }
   .tabla-scroll table {
     min-width: 780px;  /* evita que las columnas se aplasten en pantallas chicas */
@@ -173,6 +177,7 @@
   .tabla-scroll table th:last-child,
   .tabla-scroll table td:last-child { padding-right: 20px; }
   .tabla-scroll table thead tr:first-child th { padding-top: 20px; }
+  
   @media (max-width: 700px) {
     .tabla-scroll table {
       font-size: 12.5px;
@@ -196,11 +201,18 @@
     color: var(--texto-suave); border-bottom: 2px solid transparent;
     margin-top: 0 !important;
   }
-  .pestana.activa { color: var(--azul); border-bottom-color: var(--azul); }
+  .pestana.activa {color: #fff; background: var(--azul); border-bottom-color: var(--azul); border-radius: 6px 6px 0 0;}
   .seccion-pestana { display: none; }
   .seccion-pestana.activa { display: block; }
   .resumen-carga { margin-top: 16px; }
   .resumen-carga table { margin-top: 0; }
+
+@media (max-width: 600px) {
+  .marca { display: none; }
+  .fila-doble { grid-template-columns: 1fr; }
+  .tarjeta > div[style*="flex"] { flex-direction: column; align-items: stretch !important; }
+  .fila-doble > div:empty { display: none; }
+  }
 </style>
 </head>
 <body>

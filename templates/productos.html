@@ -67,15 +67,19 @@
 <div class="seccion-pestana" id="seccion-catalogos">
   <div class="tarjeta">
     <form id="form_catalogo">
-      <label for="c_tipo">Qué querés agregar</label>
+      <div>
+      <label for="c_tipo">Agregar</label>
       <select id="c_tipo" required>
         <option value="drogueria">Droguería</option>
         <option value="laboratorio">Laboratorio</option>
-        <option value="droga">Droga (principio activo)</option>
+        <option value="droga">Monodroga</option>
       </select>
 
+      </div>
+      <div>
       <label for="c_nombre">Nombre</label>
       <input type="text" id="c_nombre" placeholder="ej. FARMASUN" required>
+      </div>
 
       <div id="c_bloque_contacto">
         <label for="c_contacto">Contacto</label>
