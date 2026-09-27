@@ -1,19 +1,3 @@
-"""
-app.py
-======
-Servidor web chico (Flask) para cargar descuentos a mano desde una
-pagina HTML, en vez de escribir el INSERT a mano cada vez.
-
-Estructura pensada para crecer: cuando armemos la ventana de consulta
-de ofertas (filtrar por droga), se suma como una ruta nueva en este
-mismo archivo (o un blueprint aparte si crece mucho) y una plantilla
-nueva en templates/ -- no hace falta tocar nada de lo que ya funciona.
-
-Para correrlo:
-    pip install flask
-    python app.py
-Despues abrís http://localhost:5000 en el navegador.
-"""
 
 import re
 import unicodedata
@@ -25,6 +9,13 @@ import pandas as pd
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from base_datos import BaseDatos
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -105,7 +96,13 @@ def api_crear_descuento():
         except (TypeError, ValueError):
             errores.append("La cantidad mínima debe ser un número entero.")
 
+
     if errores:
+        logger.warning(
+            "Descuento rechazado por validación: errores=%s, drogueria_id=%s",
+            errores,
+            drogueria_id,
+        )
         return jsonify({"ok": False, "errores": errores}), 400
 
     with BaseDatos() as db:
@@ -119,6 +116,12 @@ def api_crear_descuento():
             cantidad_minima=cantidad_minima,
         )
 
+    logger.info(
+        "Descuento creado: id=%s, estado=%s, drogueria_id=%s",
+        id_creado,
+        estado,
+        drogueria_id,
+    )
     return jsonify({"ok": True, "id": id_creado, "estado": estado})
 
 
@@ -153,6 +156,7 @@ def api_ofertas():
             orden=orden,
         )
 
+    logger.info("Búsqueda de ofertas completada: resultados=%s", len(resultados))
     return jsonify([serializar_fila(r) for r in resultados])
 
 
@@ -270,7 +274,8 @@ def api_cargar_descuentos_excel():
 
     try:
         df = pd.read_excel(archivo)
-    except Exception:
+    except Exception as err:
+        logger.error("Error al leer el archivo Excel: %s", err)
         return jsonify({"ok": False, "errores": ["No se pudo leer el archivo. ¿Es un .xlsx válido?"]}), 400
 
     mapa = _mapear_columnas_ofertas(df.columns)
@@ -355,6 +360,12 @@ def api_cargar_descuentos_excel():
     if no_encontrados:
         reporte_url = _generar_reporte_no_encontrados(no_encontrados)
 
+    logger.info(
+        "Procesamiento de Excel completado: insertados=%s, sin_cambios=%s, no_encontrados=%s",
+        insertados,
+        sin_cambios,
+        len(no_encontrados),
+    )
     return jsonify({
         "ok": True,
         "total_filas": len(df),

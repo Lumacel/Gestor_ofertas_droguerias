@@ -32,3 +32,6 @@ Thumbs.db
 
 # Archivos de datos
 datos_excel/
+
+# Archivos de reportes temporales (no se suben al repositorio)
+reportes_temporales/
