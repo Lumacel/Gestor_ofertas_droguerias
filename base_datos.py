@@ -379,7 +379,7 @@ class BaseDatos:
         """
         existente = self._ejecutar(
             """
-            SELECT id, porcentaje, cantidad_minima, fecha_carga
+            SELECT id, porcentaje, cantidad_minima, fecha_carga, fecha_fin
             FROM descuentos
             WHERE drogueria_id = %s
               AND nivel_aplicacion = %s
@@ -397,10 +397,16 @@ class BaseDatos:
                 float(fila["porcentaje"]) == float(porcentaje)
                 and (fila["cantidad_minima"] or None) == (cantidad_minima or None)
             )
-            if mismo_valor:
+            mismo_vencimiento = (
+                (str(fila["fecha_fin"]) if fila["fecha_fin"] else None)
+                == (str(fecha_fin) if fecha_fin else None)
+            )
+            if mismo_valor and mismo_vencimiento:
                 return fila["id"], "sin_cambios"
 
-            if str(fila["fecha_carga"]) == str(fecha_carga):
+            # mismo valor pero otro vencimiento, o carga del mismo dia:
+            # es la misma oferta, se actualiza en el lugar
+            if mismo_valor or str(fila["fecha_carga"]) == str(fecha_carga):
                 resultado = self._ejecutar(
                     """
                     UPDATE descuentos

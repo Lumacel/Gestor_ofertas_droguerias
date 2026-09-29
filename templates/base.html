@@ -8,10 +8,10 @@
   :root {
     --azul: #1f4e79;
     --azul-oscuro: #163a5c;
-    --texto: #163a5c;
+    --texto: #2b2b2b;
     --texto-suave: #6b6b6b;
-    --borde: #4e88ce;
-    --fondo: #ccd8e9;
+    --borde: #d9dde2;
+    --fondo: #d4e2fd;
     --error: #b3261e;
     --error-fondo: #fbeceb;
     --ok-fondo: #e8f3ec;
@@ -34,15 +34,14 @@
   nav a {
     color: #fff;
     text-decoration: none;
-    font-size: 16px;
+    font-size: 15px;
     opacity: 0.85;
   }
   nav a.activo, nav a:hover { opacity: 1; text-decoration: underline; }
   nav .marca { color: #fff; font-weight: 600; margin-right: 12px; }
-  
   main {
     max-width: 620px;
-    margin: 15px auto;
+    margin: 40px auto;
     padding: 0 20px 60px;
   }
   main.ancho { max-width: 1180px; }
@@ -64,7 +63,7 @@
     color: var(--texto);
     margin-bottom: 8px;
   }
-  form > * { margin-top: 18px; }
+  form > * { margin-top: 28px; }
   form > *:first-child { margin-top: 0; }
   form > button { margin-top: 36px; }
   input, select {
@@ -159,14 +158,7 @@
   .tarjeta-tabla { padding: 0; overflow: hidden; }
   .tabla-scroll {
     overflow-x: auto;
-    overflow-y: auto;
-    max-height: 70vh;
     -webkit-overflow-scrolling: touch;
-  }
-  .tabla-scroll thead th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
   }
   .tabla-scroll table {
     min-width: 780px;  /* evita que las columnas se aplasten en pantallas chicas */
@@ -177,7 +169,6 @@
   .tabla-scroll table th:last-child,
   .tabla-scroll table td:last-child { padding-right: 20px; }
   .tabla-scroll table thead tr:first-child th { padding-top: 20px; }
-  
   @media (max-width: 700px) {
     .tabla-scroll table {
       font-size: 12.5px;
@@ -201,25 +192,18 @@
     color: var(--texto-suave); border-bottom: 2px solid transparent;
     margin-top: 0 !important;
   }
-  .pestana.activa {color: #fff; background: var(--azul); border-bottom-color: var(--azul); border-radius: 6px 6px 0 0;}
+  .pestana.activa { color: var(--azul); border-bottom-color: var(--azul); }
   .seccion-pestana { display: none; }
   .seccion-pestana.activa { display: block; }
   .resumen-carga { margin-top: 16px; }
   .resumen-carga table { margin-top: 0; }
-
-@media (max-width: 600px) {
-  .marca { display: none; }
-  .fila-doble { grid-template-columns: 1fr; }
-  .tarjeta > div[style*="flex"] { flex-direction: column; align-items: stretch !important; }
-  .fila-doble > div:empty { display: none; }
-  }
 </style>
 </head>
 <body>
   <nav>
     <span class="marca">Droguerías</span>
-    <a href="/" class="{% block nav_cargar %}{% endblock %}">Cargar descuento</a>
-    <a href="/consultar" class="{% block nav_consultar %}{% endblock %}">Consultar ofertas</a>
+    <a href="/" class="{% block nav_consultar %}{% endblock %}">Consultar ofertas</a>
+    <a href="/cargar" class="{% block nav_cargar %}{% endblock %}">Cargar descuento</a>
     <a href="/productos" class="{% block nav_productos %}{% endblock %}">Productos y catálogos</a>
   </nav>
   <main class="{% block clase_main %}{% endblock %}">

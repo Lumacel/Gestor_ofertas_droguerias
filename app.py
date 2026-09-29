@@ -1,4 +1,3 @@
-
 import re
 import unicodedata
 import uuid
@@ -14,8 +13,13 @@ import logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[
+        logging.StreamHandler(),                       # consola (lo que Docker captura)
+        logging.FileHandler("app.log", encoding="utf-8"),  # archivo de texto local
+    ],
 )
 logger = logging.getLogger(__name__)
+
 
 app = Flask(__name__)
 
@@ -36,13 +40,13 @@ def serializar_fila(fila):
 
 
 @app.route("/")
-def index():
-    return render_template("cargar_descuento.html")
-
-
-@app.route("/consultar")
 def consultar():
     return render_template("consultar_ofertas.html")
+
+
+@app.route("/cargar")
+def index():
+    return render_template("cargar_descuento.html")
 
 
 @app.route("/api/buscar")
@@ -96,13 +100,8 @@ def api_crear_descuento():
         except (TypeError, ValueError):
             errores.append("La cantidad mínima debe ser un número entero.")
 
-
     if errores:
-        logger.warning(
-            "Descuento rechazado por validación: errores=%s, drogueria_id=%s",
-            errores,
-            drogueria_id,
-        )
+        logger.warning(f"Descuento rechazado por validación: {errores}")
         return jsonify({"ok": False, "errores": errores}), 400
 
     with BaseDatos() as db:
@@ -115,13 +114,7 @@ def api_crear_descuento():
             fecha_fin=fecha_fin,
             cantidad_minima=cantidad_minima,
         )
-
-    logger.info(
-        "Descuento creado: id=%s, estado=%s, drogueria_id=%s",
-        id_creado,
-        estado,
-        drogueria_id,
-    )
+    logger.info(f"Descuento creado: id={id_creado}, estado={estado}, drogueria_id={drogueria_id}")
     return jsonify({"ok": True, "id": id_creado, "estado": estado})
 
 
@@ -156,7 +149,7 @@ def api_ofertas():
             orden=orden,
         )
 
-    logger.info("Búsqueda de ofertas completada: resultados=%s", len(resultados))
+    logger.info(f"Resultados de búsqueda: {len(resultados)}")
     return jsonify([serializar_fila(r) for r in resultados])
 
 
@@ -208,11 +201,13 @@ def api_crear_producto():
         )
 
     if id_creado is None:
+        logger.warning(f"Producto duplicado rechazado: nombre={nombre}, codigo={codigo}, troquel={troquel}")
         return jsonify({
             "ok": False,
             "errores": ["Ya existe un producto con ese código de barras o troquel."],
         }), 400
 
+    logger.info(f"Producto creado: id={id_creado}, nombre={nombre}")
     return jsonify({"ok": True, "id": id_creado})
 
 
@@ -237,7 +232,6 @@ def _mapear_columnas_ofertas(columnas):
             mapa["cantidad_minima"] = col
     return mapa
 
-        
 
 def _valor_o_none(fila, mapa, clave):
     if clave not in mapa:
@@ -275,7 +269,7 @@ def api_cargar_descuentos_excel():
     try:
         df = pd.read_excel(archivo)
     except Exception as err:
-        logger.error("Error al leer el archivo Excel: %s", err)
+        logger.error(f"Error al leer el archivo Excel: {err}")
         return jsonify({"ok": False, "errores": ["No se pudo leer el archivo. ¿Es un .xlsx válido?"]}), 400
 
     mapa = _mapear_columnas_ofertas(df.columns)
@@ -360,12 +354,7 @@ def api_cargar_descuentos_excel():
     if no_encontrados:
         reporte_url = _generar_reporte_no_encontrados(no_encontrados)
 
-    logger.info(
-        "Procesamiento de Excel completado: insertados=%s, sin_cambios=%s, no_encontrados=%s",
-        insertados,
-        sin_cambios,
-        len(no_encontrados),
-    )
+    logger.info(f"Resultados del procesamiento: insertados={insertados}, sin_cambios={sin_cambios}, no_encontrados={len(no_encontrados)}")
     return jsonify({
         "ok": True,
         "total_filas": len(df),
@@ -424,6 +413,7 @@ def api_crear_catalogo():
         etiquetas = {"drogueria": "una droguería", "laboratorio": "un laboratorio", "droga": "una droga"}
         return jsonify({"ok": False, "errores": [f"Ya existe {etiquetas[tipo]} con ese nombre."]}), 400
 
+    logger.info(f"Catálogo creado: tipo={tipo}, id={id_creado}, nombre={nombre}")
     return jsonify({"ok": True, "id": id_creado})
 
 

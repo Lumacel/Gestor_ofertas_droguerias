@@ -108,6 +108,11 @@ document.querySelectorAll('input[type="number"]').forEach((el) => {
   el.addEventListener("wheel", () => el.blur());
 });
 
+const hoyLocal = new Date().toLocaleDateString("en-CA");
+document.getElementById("fecha_fin").min = hoyLocal;
+document.getElementById("fecha_fin_excel").min = hoyLocal;
+
+
 function debounce(fn, espera) {
   let temporizador;
   return (...args) => {
