@@ -14,10 +14,10 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     handlers=[
-        logging.StreamHandler(),                       # consola (lo que Docker captura)
-        logging.FileHandler("app.log", encoding="utf-8"),  # archivo de texto local
-    ],
+        logging.StreamHandler()                      # consola (lo que Docker captura)
+        ],
 )
+
 logger = logging.getLogger(__name__)
 
 
