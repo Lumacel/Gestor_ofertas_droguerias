@@ -393,6 +393,9 @@ class BaseDatos:
 
         if existente:
             fila = existente[0]
+            # cantidad_minima es un dato secundario: no participa en
+            # identificar si es "la misma oferta", pero si cambia se
+            # considera un cambio de valor igual que el porcentaje
             mismo_valor = (
                 float(fila["porcentaje"]) == float(porcentaje)
                 and (fila["cantidad_minima"] or None) == (cantidad_minima or None)

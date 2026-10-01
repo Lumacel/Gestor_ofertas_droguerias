@@ -9,13 +9,14 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from base_datos import BaseDatos
 import logging
+import sys
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     handlers=[
-        logging.StreamHandler()                      # consola (lo que Docker captura)
-        ],
+            logging.StreamHandler(sys.stdout)  # consola (lo que Docker captura)
+            ],
 )
 
 logger = logging.getLogger(__name__)
