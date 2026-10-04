@@ -19,6 +19,7 @@ hay que revisar los 4 caminos posibles, no solo un JOIN directo.
 """
 
 import os
+import re
 import psycopg2
 import psycopg2.extras
 from pathlib import Path
@@ -55,63 +56,6 @@ class BaseDatos:
                 return []
             return cur.fetchall()
 
-    # -----------------------------------------------------------------
-    # Busqueda de productos
-    # -----------------------------------------------------------------
-
-    def buscar_por_nombre(self, texto_busqueda, limite=20):
-        """Busqueda fuzzy por nombre comercial. Requiere la extension
-        pg_trgm activada una vez en la base:
-            CREATE EXTENSION IF NOT EXISTS pg_trgm;
-        """
-        consulta = """
-            SELECT p.id, p.nombre, p.troquel,
-                   lab.nombre AS laboratorio, dg.nombre AS droga,
-                   similarity(p.nombre, %s) AS score
-            FROM productos p
-            LEFT JOIN laboratorios lab ON lab.id = p.laboratorio_id
-            LEFT JOIN drogas dg ON dg.id = p.droga_id
-            WHERE p.nombre %% %s
-            ORDER BY score DESC
-            LIMIT %s;
-        """
-        return self._ejecutar(consulta, (texto_busqueda, texto_busqueda, limite))
-
-    def buscar_por_monodroga(self, droga, limite=50):
-        """Busqueda por principio activo."""
-        consulta = """
-            SELECT p.id, p.nombre, dg.nombre AS droga
-            FROM productos p
-            JOIN drogas dg ON dg.id = p.droga_id
-            WHERE dg.nombre ILIKE %s
-            LIMIT %s;
-        """
-        return self._ejecutar(consulta, (f"%{droga}%", limite))
-
-    # -----------------------------------------------------------------
-    # Descuentos (la parte que depende del nivel_aplicacion)
-    # -----------------------------------------------------------------
-
-    def ranking_top_descuentos(self, limite=50):
-        """Los mejores descuentos vigentes en general, resolviendo a
-        que le aplican (producto / droga / laboratorio / todo)."""
-        consulta = """
-            SELECT dr.nombre AS drogueria,
-                   d.nivel_aplicacion,
-                   CASE d.nivel_aplicacion
-                       WHEN 'producto'    THEN (SELECT nombre FROM productos WHERE id = d.referencia_id)
-                       WHEN 'droga'       THEN (SELECT nombre FROM drogas WHERE id = d.referencia_id)
-                       WHEN 'laboratorio' THEN (SELECT nombre FROM laboratorios WHERE id = d.referencia_id)
-                       ELSE 'Todos los productos'
-                   END AS aplica_a,
-                   d.porcentaje, d.fecha_carga, d.fecha_fin
-            FROM descuentos d
-            JOIN droguerias dr ON dr.id = d.drogueria_id
-            WHERE (d.fecha_fin IS NULL OR d.fecha_fin >= CURRENT_DATE)
-            ORDER BY d.porcentaje DESC
-            LIMIT %s;
-        """
-        return self._ejecutar(consulta, (limite,))
 
     def buscar_ofertas(self, producto_id=None, codigo=None, troquel=None, nombre=None,
                         laboratorio=None, droga=None, drogueria=None,
@@ -202,19 +146,6 @@ class BaseDatos:
         parametros.append(limite)
         return self._ejecutar(consulta, tuple(parametros))
 
-    # -----------------------------------------------------------------
-    # Zona de aterrizaje (staging_productos)
-    # -----------------------------------------------------------------
-
-    def pendientes_en_staging(self, limite=100):
-        """Filas crudas cargadas en staging_productos que todavia no
-        se resolvieron contra productos/drogas/laboratorios."""
-        consulta = """
-            SELECT producto, laboratorio, codigo, droga
-            FROM staging_productos
-            LIMIT %s;
-        """
-        return self._ejecutar(consulta, (limite,))
 
     # -----------------------------------------------------------------
     # Carga: resolver laboratorio/droga y crear el producto
@@ -333,10 +264,13 @@ class BaseDatos:
     def encontrar_producto(self, nombre=None, codigo=None, troquel=None):
         """Busca un producto ya existente para asociarle un descuento.
         Prioridad: troquel exacto, despues codigo de barras exacto,
-        y recien si ninguno matchea, nombre parecido (ILIKE). Devuelve
-        el id, o None si no lo encontro por ningun camino -- nunca
-        crea un producto nuevo (a diferencia de laboratorio/droga,
-        un producto necesita mas datos que una fila de descuento)."""
+        y recien si ninguno matchea, nombre parecido por similitud de
+        trigramas (pg_trgm) en vez de substring exacto -- tolera orden
+        de palabras distinto y variaciones chicas de redaccion.
+        Devuelve el id, o None si no lo encontro por ningun camino --
+        nunca crea un producto nuevo (a diferencia de laboratorio/
+        droga, un producto necesita mas datos que una fila de
+        descuento)."""
         if troquel:
             r = self._ejecutar("SELECT id FROM productos WHERE troquel = %s LIMIT 1;", (troquel,))
             if r:
@@ -346,12 +280,33 @@ class BaseDatos:
             if r:
                 return r[0]["id"]
         if nombre:
+            # similitud por trigramas (pg_trgm), no substring exacto:
+            # tolera orden de palabras distinto y variaciones chicas
+            # de redaccion (ej. "AEROGAL aerosol x 170 g" vs
+            # "AEROGAL AEROSOL X 170 GR."). El operador %% ya descarta
+            # solo los resultados demasiado distintos.
             r = self._ejecutar(
-                "SELECT id FROM productos WHERE nombre ILIKE %s ORDER BY nombre LIMIT 1;",
-                (f"%{nombre}%",),
+                """
+                SELECT id, nombre AS nombre_candidato, similarity(nombre, %s) AS score
+                FROM productos
+                WHERE nombre %% %s
+                ORDER BY score DESC
+                LIMIT 5;
+                """,
+                (nombre, nombre),
             )
-            if r:
-                return r[0]["id"]
+            UMBRAL_SIMILITUD = 0.5  # por debajo de esto, mejor no adivinar
+            numeros_buscado = re.findall(r"\d+(?:\.\d+)?", nombre)
+            for fila in r:
+                if fila["score"] < UMBRAL_SIMILITUD:
+                    break  # vienen ordenados por score: si este no alcanza, ninguno de los siguientes tampoco
+                numeros_candidato = re.findall(r"\d+(?:\.\d+)?", fila["nombre_candidato"])
+
+                if numeros_buscado:
+                    if not all(n in numeros_candidato for n in numeros_buscado):
+                        continue
+
+                return fila["id"]
         return None
 
     # -----------------------------------------------------------------

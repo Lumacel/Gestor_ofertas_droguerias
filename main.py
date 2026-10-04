@@ -8,7 +8,6 @@ aca solo nos ocupamos de QUE preguntar, no de administrar la conexion.
 
 from app import app
 from base_datos import BaseDatos
-from pprint import pprint
 
 def main():
  
