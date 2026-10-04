@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block titulo %}Ingresar{% endblock %}
+
+{% block contenido %}
+<h1>Ingresar</h1>
+<p class="subtitulo">Esta sección requiere clave para cargar o modificar datos.</p>
+
+<div class="tarjeta">
+  <form method="post">
+    <label for="clave">Clave</label>
+    <input type="password" id="clave" name="clave" autofocus required>
+    <button type="submit">Ingresar</button>
+  </form>
+  {% if error %}
+    <div class="mensaje error">{{ error }}</div>
+  {% endif %}
+</div>
+{% endblock %}

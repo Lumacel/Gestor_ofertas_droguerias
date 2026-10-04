@@ -12,16 +12,6 @@ from base_datos import BaseDatos
 def main():
  
     with BaseDatos() as db:
-    
-        #print("--- Busqueda por nombre: 'actron' ---")
-        #for fila in db.buscar_por_nombre("actron",10):
-        #   print(fila)
-
-        #print("\n--- Busqueda por monodroga: 'memantine' ---")
-        #for fila in db.buscar_por_monodroga("memantine",10):
-        #   print(fila)
-
-        
         print("\n--- Ofertas por drogueria y porcentaje ---")
         for fila in db.buscar_ofertas(droga="diclofenac",porcentaje_minimo=20):
             print('producto:',fila['producto'], "droga:", fila['droga'], "laboratorio:", fila['laboratorio'], "descuento:", fila['porcentaje'], "drogueria:", fila['drogueria'])

@@ -1,3 +1,4 @@
+import os
 import re
 import unicodedata
 import uuid
@@ -10,6 +11,10 @@ from werkzeug.utils import secure_filename
 from base_datos import BaseDatos
 import logging
 import sys
+import os
+from functools import wraps
+from flask import session, redirect, url_for
+from datetime import datetime
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,6 +28,36 @@ logger = logging.getLogger(__name__)
 
 
 app = Flask(__name__)
+
+
+
+app.secret_key = os.environ.get("SECRET_KEY", "cambia-esto")
+CLAVE_ADMIN = os.environ.get("CLAVE_ADMIN", "changeme")
+
+def requiere_clave(vista):
+    @wraps(vista)
+    def envoltura(*args, **kwargs):
+        if not session.get("autenticado"):
+            return redirect(url_for("login", siguiente=request.path))
+        return vista(*args, **kwargs)
+    return envoltura
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        if request.form.get("clave") == CLAVE_ADMIN:
+            session["autenticado"] = True
+            return redirect(request.args.get("siguiente") or "/cargar")
+        error = "Clave incorrecta."
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.pop("autenticado", None)
+    return redirect("/")
 
 
 def serializar_valor(v):
@@ -46,6 +81,7 @@ def consultar():
 
 
 @app.route("/cargar")
+@requiere_clave
 def index():
     return render_template("cargar_descuento.html")
 
@@ -155,6 +191,7 @@ def api_ofertas():
 
 
 @app.route("/productos")
+@requiere_clave
 def productos():
     return render_template("productos.html")
 
@@ -179,6 +216,7 @@ def limpiar_codigo(v):
 
 
 @app.route("/api/productos", methods=["POST"])
+@requiere_clave
 def api_crear_producto():
     """Alta de un producto individual. Crea el laboratorio y/o la
     droga si no existian todavia (mismo get-or-create del pipeline
@@ -374,7 +412,7 @@ def _generar_reporte_no_encontrados(filas):
     """Guarda un excel con los productos que no se pudieron matchear,
     para revisarlos y cargarlos a mano despues. Devuelve la URL desde
     donde descargarlo."""
-    nombre_archivo = f"productos_no_encontrados_{uuid.uuid4().hex[:8]}.xlsx"
+    nombre_archivo = (f"productos_no_encontrados_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
     df_reporte = pd.DataFrame(filas)
     df_reporte.to_excel(REPORTES_DIR / nombre_archivo, index=False)
     return f"/descargar-reporte/{nombre_archivo}"
