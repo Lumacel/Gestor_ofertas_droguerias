@@ -1,7 +1,6 @@
 import os
 import re
 import unicodedata
-import uuid
 from pathlib import Path
 from datetime import date, date as date_type
 from decimal import Decimal
