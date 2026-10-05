@@ -16,12 +16,23 @@ from functools import wraps
 from flask import session, redirect, url_for
 from datetime import datetime
 
+import logging
+import sys
+from pathlib import Path
+
+# Carpeta de logs en la raíz del proyecto
+LOG_DIR = Path(__file__).resolve().parent / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+LOG_FILE = LOG_DIR / "app.log"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     handlers=[
-            logging.StreamHandler(sys.stdout)  # consola (lo que Docker captura)
-            ],
+        logging.StreamHandler(sys.stdout),      # Consola / Docker
+        logging.FileHandler(LOG_FILE, encoding="utf-8")  # Archivo
+    ],
 )
 
 logger = logging.getLogger(__name__)
@@ -104,6 +115,7 @@ def api_buscar():
 
 
 @app.route("/api/descuentos", methods=["POST"])
+@requiere_clave
 def api_crear_descuento():
     """Recibe el formulario de carga y lo inserta en 'descuentos'."""
     datos = request.get_json(silent=True) or {}
@@ -284,6 +296,7 @@ def _limpiar_texto(v):
 
 
 @app.route("/api/descuentos/excel", methods=["POST"])
+@requiere_clave
 def api_cargar_descuentos_excel():
     """Carga masiva de ofertas desde un Excel. Todas las filas son
     descuentos a nivel 'producto', para UNA sola drogueria (se pide
@@ -427,6 +440,7 @@ def descargar_reporte(nombre_archivo):
 
 
 @app.route("/api/catalogos", methods=["POST"])
+@requiere_clave
 def api_crear_catalogo():
     """Alta explicita de una drogueria, laboratorio o droga suelta,
     sin pasar por un producto."""

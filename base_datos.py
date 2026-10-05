@@ -295,7 +295,7 @@ class BaseDatos:
                 """,
                 (nombre, nombre),
             )
-            UMBRAL_SIMILITUD = 0.65  # por debajo de esto, mejor no adivinar
+            UMBRAL_SIMILITUD = 0.7  # por debajo de esto, mejor no adivinar
             numeros_buscado = re.findall(r"\d+(?:\.\d+)?", nombre)
             for fila in r:
                 if fila["score"] < UMBRAL_SIMILITUD:

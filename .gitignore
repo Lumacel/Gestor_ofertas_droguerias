@@ -15,7 +15,7 @@ __pycache__/
 *.sqlite3
 
 # Logs
-log/
+logs/
 *.log
 
 # Archivos temporales
