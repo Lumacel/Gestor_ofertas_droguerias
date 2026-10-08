@@ -1,20 +1,24 @@
-import threading
-import time
-import webbrowser
-import logging
 import os
+import sys
+import time
+import logging
+import threading
+import webbrowser
+
 import pystray
-from PIL import Image, ImageDraw
 from pystray import MenuItem as Item
+from PIL import Image, ImageDraw
 
 from app import app
 
 
 logger = logging.getLogger(__name__)
 
-
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", 5000))
+
+# Variable global para poder acceder al icono desde cualquier función
+icono = None
 
 
 def crear_icono(estado="verde"):
@@ -34,7 +38,7 @@ def crear_icono(estado="verde"):
 
 
 def iniciar_flask():
-    """Inicia el servidor Flask."""
+    """Inicia Flask."""
 
     app.run(
         host=HOST,
@@ -45,39 +49,55 @@ def iniciar_flask():
 
 
 def abrir_aplicacion(icono, item):
-    webbrowser.open(f"http://localhost:{PORT}")
+    """Abre el navegador."""
+
+    webbrowser.open(
+        f"http://localhost:{PORT}"
+    )
 
 
 def salir(icono, item):
+    """Cerrar desde el menú de la bandeja."""
+
     logger.info("Cerrando aplicación...")
-    icono.stop()
+
+    try:
+        icono.stop()
+    except Exception as e:
+        logger.error(f"Error al detener icono: {e}")
+
+    # Finalización inmediata
+    os._exit(0)
 
 
 def mostrar_mensaje_temporal(texto, segundos=3):
-    from plyer import notification
+    try:
+        from plyer import notification
 
-    notification.notify(
-        title="Servidor Flask",
-        message=texto,
-        timeout=segundos
-    )
+        notification.notify(
+            title="Servidor Flask",
+            message=texto,
+            timeout=segundos
+        )
+    except Exception as e:
+        logger.warning(f"No se pudo mostrar notificación: {e}")
 
 
 def iniciar_servidor():
 
+    global icono
+
+    # Hilo Flask
     servidor = threading.Thread(
         target=iniciar_flask,
         daemon=True
     )
-
     servidor.start()
 
     time.sleep(1)
 
     logger.info(
-        "Servidor escuchando en http://%s:%s",
-        HOST,
-        PORT
+        f"Servidor escuchando en http://localhost:{PORT}"
     )
 
     menu = pystray.Menu(
@@ -93,11 +113,40 @@ def iniciar_servidor():
     )
 
     mostrar_mensaje_temporal(
-        f"Activo en puerto {PORT}",5
+        f"Activo en puerto {PORT}",
+        5
     )
 
-    icono.run()
+    # Ejecutar pystray en hilo daemon
+    tray_thread = threading.Thread(
+        target=icono.run,
+        daemon=True
+    )
+    tray_thread.start()
+
+    try:
+        while True:
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+
+        logger.info(
+            "Ctrl+C detectado. Cerrando aplicación..."
+        )
+
+        try:
+            icono.stop()
+        except Exception:
+            pass
+
+        os._exit(0)
 
 
 if __name__ == "__main__":
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
     iniciar_servidor()
