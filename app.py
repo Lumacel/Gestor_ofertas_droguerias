@@ -233,11 +233,11 @@ def api_crear_producto():
     droga si no existian todavia (mismo get-or-create del pipeline
     de carga masiva)."""
     datos = request.get_json(silent=True) or {}
-    nombre = (datos.get("nombre") or "").strip()
+    nombre = (datos.get("nombre") or "").strip().upper()
     codigo = limpiar_codigo(datos.get("codigo"))
     troquel = limpiar_codigo(datos.get("troquel"))
-    laboratorio = (datos.get("laboratorio") or "").strip() or None
-    droga = (datos.get("droga") or "").strip() or None
+    laboratorio = (datos.get("laboratorio") or "").strip().upper() or None
+    droga = (datos.get("droga") or "").strip().upper() or None
 
     if not nombre:
         return jsonify({"ok": False, "errores": ["Falta el nombre del producto."]}), 400
@@ -291,7 +291,7 @@ def _valor_o_none(fila, mapa, clave):
 
 
 def _limpiar_texto(v):
-    return str(v).strip() if v is not None else None
+    return str(v).strip().upper() if v is not None else None
 
 
 @app.route("/api/descuentos/excel", methods=["POST"])
@@ -309,7 +309,7 @@ def api_cargar_descuentos_excel():
     inventa: se junta en un reporte Excel para cargarlo a mano
     despues en "Productos y catálogos"."""
     archivo = request.files.get("archivo")
-    drogueria_texto = (request.form.get("drogueria") or "").strip()
+    drogueria_texto = (request.form.get("drogueria") or "").strip().upper()
     fecha_fin = (request.form.get("fecha_fin") or "").strip() or None
 
     if not archivo:
@@ -445,7 +445,7 @@ def api_crear_catalogo():
     sin pasar por un producto."""
     datos = request.get_json(silent=True) or {}
     tipo = datos.get("tipo")
-    nombre = (datos.get("nombre") or "").strip()
+    nombre = (datos.get("nombre") or "").strip().upper()
     contacto = (datos.get("contacto") or "").strip() or None
 
     if tipo not in ("drogueria", "laboratorio", "droga"):
