@@ -4,26 +4,36 @@ import unicodedata
 from pathlib import Path
 from datetime import date, date as date_type
 from decimal import Decimal
+from dotenv import load_dotenv
 import pandas as pd
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
-from base_datos import BaseDatos
+from src.base_datos import BaseDatos
 import logging
 import sys
 import os
 from functools import wraps
 from flask import session, redirect, url_for
 from datetime import datetime
-
 import logging
 import sys
 from pathlib import Path
 
-# Carpeta de logs en la raíz del proyecto
-LOG_DIR = Path(__file__).resolve().parent / "logs"
-LOG_DIR.mkdir(exist_ok=True)
+# Carpeta base del proyecto (donde está main.py)
+BASE_DIR = Path(__file__).resolve().parent.parent
+print(f"BASE_DIR: {BASE_DIR}")
 
+# Carpeta de logs en la raíz del proyecto
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
 LOG_FILE = LOG_DIR / "app.log"
+
+REPORTES_DIR = BASE_DIR / "reportes_temporales"
+REPORTES_DIR.mkdir(exist_ok=True)
+
+
+load_dotenv(BASE_DIR / ".env")
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,7 +47,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-app = Flask(__name__)
+app = Flask( __name__,template_folder=str(BASE_DIR / "templates"))
 
 
 
@@ -414,10 +424,6 @@ def api_cargar_descuentos_excel():
         "no_encontrados": len(no_encontrados),
         "reporte_url": reporte_url,
     })
-
-
-REPORTES_DIR = Path(__file__).parent / "reportes_temporales"
-REPORTES_DIR.mkdir(exist_ok=True)
 
 
 def _generar_reporte_no_encontrados(filas):

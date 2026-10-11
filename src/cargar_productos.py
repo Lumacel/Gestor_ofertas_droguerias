@@ -18,7 +18,7 @@ Dos mejoras sobre la version anterior:
 import re
 import pandas as pd
 import psycopg2.extras
-from base_datos import BaseDatos
+from src.base_datos import BaseDatos
 
 RUTA_EXCEL = r"datos_excel\1980-2026_i_laboratorio_normalizado.xlsx"
 

@@ -9,10 +9,11 @@ import pystray
 from pystray import MenuItem as Item
 from PIL import Image, ImageDraw
 
-from app import app
+from src.app import app
 
 
 logger = logging.getLogger(__name__)
+
 
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", 5000))
