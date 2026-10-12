@@ -1,0 +1,12 @@
+.env
+.venv
+.vscode
+.git
+__pycache__
+*.pyc
+datos_excel
+db_estructura_sql
+logs
+reportes_temporales
+*.bat
+README.md

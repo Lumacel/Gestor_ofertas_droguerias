@@ -1,0 +1,13 @@
+services:
+  gestor:
+    build: .
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - TZ=America/Argentina/Buenos_Aires
+    volumes:
+      - ./logs:/app/logs
+      - ./reportes_temporales:/app/reportes_temporales
+    restart: unless-stopped
