@@ -2,7 +2,7 @@ import os
 import re
 import unicodedata
 from pathlib import Path
-from datetime import date, date as date_type
+from datetime import date, timedelta, date as date_type
 from decimal import Decimal
 from dotenv import load_dotenv
 import pandas as pd
@@ -18,6 +18,7 @@ from datetime import datetime
 import logging
 import sys
 from pathlib import Path
+import psycopg2
 
 # Carpeta base del proyecto (donde está main.py)
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -473,6 +474,125 @@ def api_crear_catalogo():
 
     logger.info(f"Catálogo creado: tipo={tipo}, id={id_creado}, nombre={nombre}")
     return jsonify({"ok": True, "id": id_creado})
+
+
+# ----------------------------------------------------------------------
+# Administracion: editar productos y gestionar ofertas (requiere clave)
+# ----------------------------------------------------------------------
+
+def _texto_o_none(valor, mayusculas=False):
+    t = (valor or "").strip()
+    if mayusculas:
+        t = t.upper()
+    return t or None  # vacio -> None (los UNIQUE de codigo/troquel no admiten '' repetido)
+
+
+@app.route("/administrar")
+@requiere_clave
+def admin_pagina():
+    return render_template("administrar.html")
+
+
+@app.route("/admin/api/productos")
+@requiere_clave
+def admin_api_productos():
+    texto = (request.args.get("q") or "").strip()
+    sin_troquel = request.args.get("sin_troquel") == "1"
+    texto = texto if len(texto) >= 2 else None
+    with BaseDatos() as db:
+        filas = db.admin_buscar_productos(texto, sin_troquel)
+    return jsonify([serializar_fila(f) for f in filas])
+
+
+@app.route("/admin/api/productos/<int:producto_id>", methods=["PUT"])
+@requiere_clave
+def admin_api_editar_producto(producto_id):
+    datos = request.get_json(silent=True) or {}
+    nombre = _texto_o_none(datos.get("nombre"), mayusculas=True)
+    if not nombre:
+        return jsonify({"ok": False, "errores": ["El nombre no puede quedar vacío."]}), 400
+
+    try:
+        with BaseDatos() as db:
+            existe = db.admin_editar_producto(
+                producto_id,
+                nombre,
+                _texto_o_none(datos.get("codigo")),
+                _texto_o_none(datos.get("troquel")),
+                _texto_o_none(datos.get("laboratorio"), mayusculas=True),
+                _texto_o_none(datos.get("droga"), mayusculas=True),
+            )
+    except psycopg2.errors.UniqueViolation:
+        logger.warning(f"Admin: edicion rechazada por duplicado (producto {producto_id})")
+        return jsonify({
+            "ok": False,
+            "errores": ["Ya existe otro producto con ese código de barras o troquel."],
+        }), 400
+
+    if not existe:
+        return jsonify({"ok": False, "errores": ["El producto ya no existe."]}), 404
+
+    logger.info(f"Admin: producto {producto_id} editado ({nombre})")
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/api/ofertas")
+@requiere_clave
+def admin_api_ofertas():
+    texto = (request.args.get("q") or "").strip() or None
+    solo_vigentes = request.args.get("estado", "vigentes") != "todas"
+    with BaseDatos() as db:
+        filas = db.admin_buscar_ofertas(texto, solo_vigentes)
+    return jsonify([serializar_fila(f) for f in filas])
+
+
+@app.route("/admin/api/ofertas/<int:oferta_id>/fin", methods=["PUT"])
+@requiere_clave
+def admin_api_fin_oferta(oferta_id):
+    datos = request.get_json(silent=True) or {}
+
+    if datos.get("finalizar_ya"):
+        # la oferta se considera vigente mientras fecha_fin >= hoy, asi que
+        # para cortarla ya mismo el ultimo dia valido es ayer
+        nueva = date.today() - timedelta(days=1)
+    else:
+        texto = (datos.get("fecha_fin") or "").strip()
+        if texto:
+            try:
+                nueva = date.fromisoformat(texto)
+            except ValueError:
+                return jsonify({"ok": False, "errores": ["Fecha inválida."]}), 400
+        else:
+            nueva = None  # quitar el vencimiento
+
+    with BaseDatos() as db:
+        resultado = db.admin_cambiar_fin_oferta(oferta_id, nueva)
+
+    if resultado == "no_existe":
+        return jsonify({"ok": False, "errores": ["La oferta ya no existe."]}), 404
+    if resultado == "conflicto":
+        return jsonify({
+            "ok": False,
+            "errores": ["Ya hay otra oferta vigente para la misma droguería y producto. "
+                        "Finalizá o eliminá esa primero."],
+        }), 400
+
+    logger.info(f"Admin: oferta {oferta_id} fecha_fin={nueva}")
+    return jsonify({"ok": True, "fecha_fin": nueva.isoformat() if nueva else None})
+
+
+@app.route("/admin/api/ofertas/<int:oferta_id>", methods=["DELETE"])
+@requiere_clave
+def admin_api_eliminar_oferta(oferta_id):
+    with BaseDatos() as db:
+        borrada = db.admin_eliminar_oferta(oferta_id)
+    if not borrada:
+        return jsonify({"ok": False, "errores": ["La oferta ya no existe."]}), 404
+
+    logger.info(f"Admin: oferta {oferta_id} eliminada")
+    return jsonify({"ok": True})
+
+
 
 
 if __name__ == "__main__":

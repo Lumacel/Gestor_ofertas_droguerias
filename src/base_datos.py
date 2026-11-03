@@ -401,3 +401,141 @@ class BaseDatos:
         ))
         id_nuevo = resultado[0]["id"] if resultado else None
         return id_nuevo, ("reemplazado" if existente else "creado")
+
+
+# -----------------------------------------------------------------
+    # Administracion: edicion de productos y gestion de ofertas
+    # -----------------------------------------------------------------
+
+    def admin_buscar_productos(self, texto=None, sin_troquel=False, limite=50):
+        """Busca productos por nombre, codigo o troquel. Con sin_troquel=True
+        solo trae los que todavia no tienen troquel cargado."""
+        condiciones, parametros = [], []
+        if texto:
+            condiciones.append(
+                "(p.nombre ILIKE %s OR p.codigo ILIKE %s OR p.troquel ILIKE %s"
+                " OR lab.nombre ILIKE %s OR dg.nombre ILIKE %s)"
+            )
+            parametros += [f"%{texto}%"] * 5
+        if sin_troquel:
+            condiciones.append("(p.troquel IS NULL OR p.troquel = '')")
+        if not condiciones:
+            return []
+        parametros.append(limite)
+        return self._ejecutar(
+            f"""
+            SELECT p.id, p.nombre, p.codigo, p.troquel,
+                   lab.nombre AS laboratorio, dg.nombre AS droga
+            FROM productos p
+            LEFT JOIN laboratorios lab ON lab.id = p.laboratorio_id
+            LEFT JOIN drogas dg ON dg.id = p.droga_id
+            WHERE {" AND ".join(condiciones)}
+            ORDER BY p.nombre
+            LIMIT %s;
+            """,
+            tuple(parametros),
+        )
+
+    def admin_editar_producto(self, producto_id, nombre, codigo, troquel, laboratorio, droga):
+        """Actualiza un producto. Devuelve True si existia, False si no.
+        Laboratorio y droga se crean si todavia no existen. Si el codigo o
+        el troquel ya los tiene OTRO producto, Postgres lanza UniqueViolation
+        (la ruta lo captura; no se atrapa aca para que el with de BaseDatos
+        pueda hacer rollback)."""
+        laboratorio_id = self.obtener_o_crear_laboratorio(laboratorio)
+        droga_id = self.obtener_o_crear_droga(droga)
+        filas = self._ejecutar(
+            """
+            UPDATE productos
+            SET nombre = %s, codigo = %s, troquel = %s,
+                laboratorio_id = %s, droga_id = %s
+            WHERE id = %s
+            RETURNING id;
+            """,
+            (nombre, codigo, troquel, laboratorio_id, droga_id, producto_id),
+        )
+        return bool(filas)
+
+    def admin_buscar_ofertas(self, texto=None, solo_vigentes=True, limite=100):
+        """Lista ofertas (vigentes o todas) con el nombre de a que aplican."""
+        condiciones, parametros = [], []
+        if texto:
+            condiciones.append(
+                "(aplica_a ILIKE %s OR drogueria ILIKE %s"
+                " OR laboratorio ILIKE %s OR droga ILIKE %s)"
+            )
+            parametros += [f"%{texto}%"] * 4
+        if solo_vigentes:
+            condiciones.append("vigente")
+        donde = ("WHERE " + " AND ".join(condiciones)) if condiciones else ""
+        parametros.append(limite)
+        return self._ejecutar(
+            f"""
+            WITH o AS (
+                SELECT d.id, dr.nombre AS drogueria, d.nivel_aplicacion,
+                       CASE d.nivel_aplicacion
+                           WHEN 'producto'    THEN (SELECT nombre FROM productos WHERE id = d.referencia_id)
+                           WHEN 'droga'       THEN (SELECT nombre FROM drogas WHERE id = d.referencia_id)
+                           WHEN 'laboratorio' THEN (SELECT nombre FROM laboratorios WHERE id = d.referencia_id)
+                           ELSE 'TODOS LOS PRODUCTOS'
+                       END AS aplica_a,
+                       pl.nombre AS laboratorio, pd.nombre AS droga,
+                       d.porcentaje, d.cantidad_minima, d.fecha_carga, d.fecha_fin,
+                       (d.fecha_fin IS NULL OR d.fecha_fin >= CURRENT_DATE) AS vigente
+                FROM descuentos d
+                JOIN droguerias dr ON dr.id = d.drogueria_id
+                LEFT JOIN productos pr ON d.nivel_aplicacion = 'producto' AND pr.id = d.referencia_id
+                LEFT JOIN laboratorios pl ON pl.id = pr.laboratorio_id
+                LEFT JOIN drogas pd ON pd.id = pr.droga_id
+            )
+            SELECT * FROM o
+            {donde}
+            ORDER BY fecha_carga DESC, id DESC
+            LIMIT %s;
+            """,
+            tuple(parametros),
+        )
+
+    def admin_cambiar_fin_oferta(self, oferta_id, nueva_fecha):
+        """Cambia la fecha_fin de una oferta (nueva_fecha=None quita el
+        vencimiento). Devuelve 'ok', 'no_existe' o 'conflicto'. Hay
+        conflicto si la oferta quedaria vigente y ya existe OTRA vigente
+        para la misma drogueria + nivel + a que aplica (el sistema nunca
+        las deja convivir)."""
+        if not self._ejecutar("SELECT id FROM descuentos WHERE id = %s;", (oferta_id,)):
+            return "no_existe"
+
+        queda_vigente = self._ejecutar(
+            "SELECT (%s::date IS NULL OR %s::date >= CURRENT_DATE) AS v;",
+            (nueva_fecha, nueva_fecha),
+        )[0]["v"]
+        if queda_vigente:
+            otra = self._ejecutar(
+                """
+                SELECT o.id
+                FROM descuentos d
+                JOIN descuentos o
+                  ON o.id <> d.id
+                 AND o.drogueria_id = d.drogueria_id
+                 AND o.nivel_aplicacion = d.nivel_aplicacion
+                 AND o.referencia_id IS NOT DISTINCT FROM d.referencia_id
+                 AND (o.fecha_fin IS NULL OR o.fecha_fin >= CURRENT_DATE)
+                WHERE d.id = %s
+                LIMIT 1;
+                """,
+                (oferta_id,),
+            )
+            if otra:
+                return "conflicto"
+
+        self._ejecutar(
+            "UPDATE descuentos SET fecha_fin = %s WHERE id = %s RETURNING id;",
+            (nueva_fecha, oferta_id),
+        )
+        return "ok"
+
+    def admin_eliminar_oferta(self, oferta_id):
+        """Borra una oferta. Devuelve True si existia."""
+        return bool(self._ejecutar(
+            "DELETE FROM descuentos WHERE id = %s RETURNING id;", (oferta_id,)
+        ))

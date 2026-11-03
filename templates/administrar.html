@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% block titulo %}Administrar{% endblock %}
+{% block nav_admin %}activo{% endblock %}
+{% block clase_main %}ancho{% endblock %}
+
+{% block contenido %}
+<style>
+  #a_q, #o_q, #e_nombre, #e_laboratorio, #e_droga { text-transform: uppercase; }
+  input::placeholder { text-transform: none; }
+  .check {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 400; text-transform: none; letter-spacing: normal;
+    color: var(--texto); font-size: 14px;
+  }
+  .check input { width: auto; }
+  .btn-chico { width: auto; margin-top: 0; padding: 5px 10px; font-size: 12px; }
+  .btn-peligro { background: var(--error); }
+  .btn-peligro:hover { background: #8c1d18; }
+  .in-chico { width: auto; padding: 4px 6px; font-size: 12px; }
+  .acciones { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 280px; }
+  .estado-vigente { color: var(--ok-texto); font-weight: 600; }
+  .estado-finalizada { color: var(--texto-suave); font-weight: 600; }
+  .sin-dato { color: var(--error); font-size: 12px; }
+</style>
+
+<h1>Administrar</h1>
+<p class="subtitulo">Corregí datos de productos y gestioná las ofertas ya cargadas.</p>
+
+<div class="pestanas">
+  <button type="button" class="pestana activa" data-pestana="productos">Productos</button>
+  <button type="button" class="pestana" data-pestana="ofertas">Ofertas</button>
+</div>
+
+<!-- ===================== Productos ===================== -->
+<div class="seccion-pestana activa" id="seccion-productos">
+  <div class="tarjeta">
+    <form id="form_buscar_productos">
+      <div>
+        <label for="a_q">Buscar producto (nombre, código, troquel, laboratorio o droga)</label>
+        <input type="text" id="a_q" placeholder="ej. ibupirac, andromaco o losartan" autocomplete="off">
+      </div>
+      <label class="check"><input type="checkbox" id="a_sin_troquel"> Solo productos sin troquel</label>
+      <div class="fila-botones">
+        <button type="submit">Buscar</button>
+        <button type="button" id="a_limpiar" class="boton-secundario">Limpiar</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="a_mensaje"></div>
+
+  <input type="hidden" id="e_id">
+  <div class="tarjeta" id="card_editar" style="display:none; margin-top:20px;">
+    <h2 style="margin-top:0; font-size:17px;">Editar producto <span id="e_titulo" style="color:var(--texto-suave);"></span></h2>
+    <form id="form_editar_producto">
+      <div>
+        <label for="e_nombre">Producto</label>
+        <input type="text" id="e_nombre" required autocomplete="off">
+      </div>
+      <div class="fila-doble">
+        <div>
+          <label for="e_codigo">Código barras</label>
+          <input type="text" id="e_codigo" autocomplete="off">
+        </div>
+        <div>
+          <label for="e_troquel">Troquel</label>
+          <input type="text" id="e_troquel" autocomplete="off">
+        </div>
+      </div>
+      <div class="fila-doble">
+        <div>
+          <label for="e_laboratorio">Laboratorio</label>
+          <input type="text" id="e_laboratorio" list="dl_laboratorios" autocomplete="off">
+        </div>
+        <div>
+          <label for="e_droga">Monodroga</label>
+          <input type="text" id="e_droga" list="dl_drogas" autocomplete="off">
+        </div>
+      </div>
+      <p class="ayuda">Si escribís un laboratorio o una droga que no existe, se crea. Elegí de la lista para evitar duplicados por errores de tipeo.</p>
+      <div class="fila-botones">
+        <button type="submit" id="e_guardar">Guardar cambios</button>
+        <button type="button" id="e_cancelar" class="boton-secundario">Cancelar</button>
+      </div>
+    </form>
+    <div id="e_mensaje"></div>
+    <datalist id="dl_laboratorios"></datalist>
+    <datalist id="dl_drogas"></datalist>
+  </div>
+
+  <div id="a_resultados"></div>
+</div>
+
+<!-- ===================== Ofertas ===================== -->
+<div class="seccion-pestana" id="seccion-ofertas">
+  <div class="tarjeta">
+    <form id="form_buscar_ofertas">
+      <div class="fila-doble">
+        <div>
+          <label for="o_q">Producto, droga, laboratorio o droguería</label>
+          <input type="text" id="o_q" placeholder="ej. ibupirac o liek" autocomplete="off">
+        </div>
+        <div>
+          <label for="o_estado">Mostrar</label>
+          <select id="o_estado">
+            <option value="vigentes">Solo vigentes</option>
+            <option value="todas">Todas (incluye finalizadas)</option>
+          </select>
+        </div>
+      </div>
+      <div class="fila-botones">
+        <button type="submit">Buscar</button>
+        <button type="button" id="o_limpiar" class="boton-secundario">Limpiar</button>
+      </div>
+    </form>
+    <p class="ayuda" style="margin-top:14px;">"Guardar fin" aplica la fecha elegida; con la fecha vacía quita el vencimiento. "Finalizar ya" la corta hoy mismo.</p>
+  </div>
+
+  <div id="o_mensaje"></div>
+  <div id="o_resultados"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+));
+const ETIQUETA_NIVEL = { producto: "Producto", droga: "Droga", laboratorio: "Laboratorio", general: "General" };
+
+function formatearFecha(iso) {
+  if (!iso) return "—";
+  const [a, m, d] = iso.split("-");
+  return `${d}/${m}/${a}`;
+}
+
+function mostrar(idContenedor, tipo, mensajes) {
+  const lista = Array.isArray(mensajes) ? mensajes : [mensajes];
+  $(idContenedor).innerHTML = `<div class="mensaje ${tipo}">${lista.map(esc).join("<br>")}</div>`;
+}
+
+async function llamar(url, opciones) {
+  const resp = await fetch(url, opciones);
+  let datos;
+  try {
+    datos = await resp.json();
+  } catch (e) {
+    throw new Error("La sesión venció o el servidor no respondió. Volvé a ingresar.");
+  }
+  return { ok: resp.ok, datos };
+}
+
+// ---------------- pestañas ----------------
+let ofertasCargadas = false;
+document.querySelectorAll(".pestana").forEach((boton) => {
+  boton.addEventListener("click", () => {
+    document.querySelectorAll(".pestana").forEach((b) => b.classList.remove("activa"));
+    document.querySelectorAll(".seccion-pestana").forEach((s) => s.classList.remove("activa"));
+    boton.classList.add("activa");
+    $(`seccion-${boton.dataset.pestana}`).classList.add("activa");
+    if (boton.dataset.pestana === "ofertas" && !ofertasCargadas) {
+      ofertasCargadas = true;
+      buscarOfertas();
+    }
+  });
+});
+
+// ---------------- productos ----------------
+let productos = [];
+
+async function buscarProductos() {
+  const q = $("a_q").value.trim();
+  const sinTroquel = $("a_sin_troquel").checked;
+  const cont = $("a_resultados");
+  if (q.length < 2 && !sinTroquel) {
+    cont.innerHTML = "";
+    mostrar("a_mensaje", "error", 'Escribí al menos 2 caracteres, o tildá "Solo productos sin troquel".');
+    return;
+  }
+  $("a_mensaje").innerHTML = "";
+  try {
+    const { datos } = await llamar(`/admin/api/productos?q=${encodeURIComponent(q)}&sin_troquel=${sinTroquel ? 1 : 0}`);
+    productos = datos;
+    if (!productos.length) {
+      cont.innerHTML = `<div class="tarjeta" style="margin-top:20px;"><p class="vacio">No se encontraron productos.</p></div>`;
+      return;
+    }
+    const filas = productos.map((p, i) => `
+      <tr>
+        <td>${p.id}</td>
+        <td>${esc(p.nombre)}</td>
+        <td>${esc(p.codigo || "—")}</td>
+        <td>${p.troquel ? esc(p.troquel) : '<span class="sin-dato">sin troquel</span>'}</td>
+        <td>${esc(p.laboratorio || "—")}</td>
+        <td>${esc(p.droga || "—")}</td>
+        <td><button type="button" class="btn-chico" data-editar="${i}">Editar</button></td>
+      </tr>`).join("");
+    const aviso = productos.length >= 50
+      ? '<p class="ayuda" style="margin-top:8px;">Se muestran los primeros 50. Afiná la búsqueda para ver otros.</p>' : "";
+    cont.innerHTML = `
+      <div class="tarjeta tarjeta-tabla" style="margin-top:20px;">
+        <div class="tabla-scroll"><table>
+          <thead><tr><th>ID</th><th>Producto</th><th>Código barras</th><th>Troquel</th><th>Laboratorio</th><th>Monodroga</th><th></th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table></div>
+      </div>${aviso}`;
+  } catch (err) {
+    mostrar("a_mensaje", "error", err.message);
+  }
+}
+
+function abrirEdicion(p) {
+  $("e_id").value = p.id;
+  $("e_titulo").textContent = `(id ${p.id})`;
+  $("e_nombre").value = p.nombre || "";
+  $("e_codigo").value = p.codigo || "";
+  $("e_troquel").value = p.troquel || "";
+  $("e_laboratorio").value = p.laboratorio || "";
+  $("e_droga").value = p.droga || "";
+  $("e_mensaje").innerHTML = "";
+  $("card_editar").style.display = "block";
+  $("card_editar").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+$("a_resultados").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-editar]");
+  if (b) abrirEdicion(productos[Number(b.dataset.editar)]);
+});
+
+$("form_buscar_productos").addEventListener("submit", (e) => { e.preventDefault(); buscarProductos(); });
+$("a_limpiar").addEventListener("click", () => {
+  $("form_buscar_productos").reset();
+  $("a_resultados").innerHTML = "";
+  $("a_mensaje").innerHTML = "";
+});
+$("e_cancelar").addEventListener("click", () => { $("card_editar").style.display = "none"; });
+
+$("form_editar_producto").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const boton = $("e_guardar");
+  boton.disabled = true;
+  try {
+    const { ok, datos } = await llamar(`/admin/api/productos/${$("e_id").value}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nombre: $("e_nombre").value,
+        codigo: $("e_codigo").value,
+        troquel: $("e_troquel").value,
+        laboratorio: $("e_laboratorio").value,
+        droga: $("e_droga").value,
+      }),
+    });
+    if (ok && datos.ok) {
+      $("card_editar").style.display = "none";
+      mostrar("a_mensaje", "ok", "Producto actualizado.");
+      await buscarProductos();
+      mostrar("a_mensaje", "ok", "Producto actualizado.");
+    } else {
+      mostrar("e_mensaje", "error", datos.errores || ["No se pudo guardar."]);
+    }
+  } catch (err) {
+    mostrar("e_mensaje", "error", err.message);
+  } finally {
+    boton.disabled = false;
+  }
+});
+
+function autocompletarLista(inputId, listaId, tipo) {
+  const input = $(inputId), lista = $(listaId);
+  let temporizador;
+  input.addEventListener("input", () => {
+    clearTimeout(temporizador);
+    temporizador = setTimeout(async () => {
+      try {
+        const { datos } = await llamar(`/api/buscar?tipo=${tipo}&q=${encodeURIComponent(input.value)}`);
+        lista.innerHTML = datos.map((r) => `<option value="${esc(r.nombre)}">`).join("");
+      } catch (err) { /* el autocompletado es opcional, se ignora */ }
+    }, 250);
+  });
+}
+autocompletarLista("e_laboratorio", "dl_laboratorios", "laboratorios");
+autocompletarLista("e_droga", "dl_drogas", "drogas");
+
+// ---------------- ofertas ----------------
+async function buscarOfertas() {
+  const q = $("o_q").value.trim();
+  const estado = $("o_estado").value;
+  const cont = $("o_resultados");
+  try {
+    const { datos } = await llamar(`/admin/api/ofertas?q=${encodeURIComponent(q)}&estado=${estado}`);
+    if (!datos.length) {
+      cont.innerHTML = `<div class="tarjeta" style="margin-top:20px;"><p class="vacio">No se encontraron ofertas.</p></div>`;
+      return;
+    }
+    const filas = datos.map((o) => `
+      <tr>
+        <td>${o.id}</td>
+        <td>${esc(o.aplica_a || "—")}</td>
+        <td>${esc(o.drogueria)}</td>
+        <td>${esc(ETIQUETA_NIVEL[o.nivel_aplicacion] || o.nivel_aplicacion)}</td>
+        <td class="porcentaje">${Number(o.porcentaje).toFixed(2)}%</td>
+        <td>${o.cantidad_minima ?? "—"}</td>
+        <td>${formatearFecha(o.fecha_carga)}</td>
+        <td>${formatearFecha(o.fecha_fin)}</td>
+        <td>${o.vigente ? '<span class="estado-vigente">Vigente</span>' : '<span class="estado-finalizada">Finalizada</span>'}</td>
+        <td><div class="acciones">
+          <input type="date" class="in-chico" id="fin_${o.id}" value="${o.fecha_fin || ""}">
+          <button type="button" class="btn-chico" data-accion="guardar" data-id="${o.id}">Guardar fin</button>
+          <button type="button" class="btn-chico" data-accion="finalizar" data-id="${o.id}">Finalizar ya</button>
+          <button type="button" class="btn-chico btn-peligro" data-accion="eliminar" data-id="${o.id}">Eliminar</button>
+        </div></td>
+      </tr>`).join("");
+    const aviso = datos.length >= 100
+      ? '<p class="ayuda" style="margin-top:8px;">Se muestran las 100 más recientes. Afiná la búsqueda para ver otras.</p>' : "";
+    cont.innerHTML = `
+      <div class="tarjeta tarjeta-tabla" style="margin-top:20px;">
+        <div class="tabla-scroll"><table>
+          <thead><tr><th>ID</th><th>A qué aplica</th><th>Droguería</th><th>Nivel</th><th>%</th><th>Mín.</th><th>Desde</th><th>Hasta</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table></div>
+      </div>${aviso}`;
+  } catch (err) {
+    mostrar("o_mensaje", "error", err.message);
+  }
+}
+
+$("o_resultados").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-accion]");
+  if (!b) return;
+  const id = b.dataset.id;
+  const cabeceras = { "Content-Type": "application/json" };
+  try {
+    let r;
+    if (b.dataset.accion === "eliminar") {
+      if (!confirm("¿Eliminar esta oferta definitivamente? Esta acción no se puede deshacer.")) return;
+      r = await llamar(`/admin/api/ofertas/${id}`, { method: "DELETE" });
+    } else if (b.dataset.accion === "finalizar") {
+      if (!confirm("¿Dar por finalizada esta oferta ahora? Dejará de mostrarse en las consultas.")) return;
+      r = await llamar(`/admin/api/ofertas/${id}/fin`, {
+        method: "PUT", headers: cabeceras, body: JSON.stringify({ finalizar_ya: true }),
+      });
+    } else {
+      r = await llamar(`/admin/api/ofertas/${id}/fin`, {
+        method: "PUT", headers: cabeceras, body: JSON.stringify({ fecha_fin: $(`fin_${id}`).value }),
+      });
+    }
+    if (r.ok && r.datos.ok) {
+      await buscarOfertas();
+      mostrar("o_mensaje", "ok", "Cambio guardado.");
+    } else {
+      mostrar("o_mensaje", "error", r.datos.errores || ["No se pudo completar la acción."]);
+    }
+  } catch (err) {
+    mostrar("o_mensaje", "error", err.message);
+  }
+});
+
+$("form_buscar_ofertas").addEventListener("submit", (e) => { e.preventDefault(); $("o_mensaje").innerHTML = ""; buscarOfertas(); });
+$("o_limpiar").addEventListener("click", () => {
+  $("form_buscar_ofertas").reset();
+  $("o_mensaje").innerHTML = "";
+  buscarOfertas();
+});
+</script>
+{% endblock %}
